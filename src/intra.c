@@ -39,7 +39,7 @@ const od_intra_mult_func OD_INTRA_MULT[OD_NBSIZES+1] = {
   od_intra_pred16x16_mult
 };
 
-void od_intra_pred4x4_mult(double *pred, int pred_stride, od_coeff *blocks[4],
+void od_intra_pred4x4_mult(double *__restrict pred, int pred_stride, od_coeff *__restrict blocks[4],
  int strides[4], int mode) {
   const ogg_uint16_t *index;
   const double *weights;
@@ -70,7 +70,7 @@ void od_intra_pred4x4_mult(double *pred, int pred_stride, od_coeff *blocks[4],
   }
 }
 
-void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
+void od_intra_pred8x8_mult(double *__restrict pred, int pred_stride, od_coeff * __restrict blocks[4],
  int strides[4], int mode) {
   const ogg_uint16_t *index;
   const double *weights;
@@ -101,8 +101,8 @@ void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
   }
 }
 
-void od_intra_pred16x16_mult(double *pred, int pred_stride,
- od_coeff *blocks[4], int strides[4], int mode) {
+void od_intra_pred16x16_mult(double *__restrict pred, int pred_stride,
+ od_coeff *__restrict blocks[4], int strides[4], int mode) {
   const ogg_uint16_t *index;
   const double *weights;
   int j;

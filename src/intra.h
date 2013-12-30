@@ -30,8 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 
 # define OD_INTRA_NCONTEXTS (8)
 
-typedef void (*od_intra_mult_func)(double *_p, int _pred_stride,
- od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
+typedef void (*od_intra_mult_func)(double *__restrict _p, int _pred_stride,
+ od_coeff *__restrict _neighbors[4], int _neighbor_strides[4], int _mode);
 
 extern const od_intra_mult_func OD_INTRA_MULT[OD_NBSIZES+1];
 
@@ -39,12 +39,12 @@ extern const double OD_INTRA_PRED_WEIGHTS_4x4[OD_INTRA_NMODES][4][4][2*4][2*4];
 extern const unsigned char OD_INTRA_PRED_PROB_4x4[3]
  [OD_INTRA_NMODES][OD_INTRA_NCONTEXTS];
 
-void od_intra_pred4x4_mult(double *_p, int _pred_stride,
- od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
-void od_intra_pred8x8_mult(double *_p, int _pred_stride,
- od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
+void od_intra_pred4x4_mult(double *__restrict _p, int _pred_stride,
+ od_coeff *__restrict _neighbors[4], int _neighbor_strides[4], int _mode);
+void od_intra_pred8x8_mult(double *__restrict _p, int _pred_stride,
+ od_coeff *__restrict _neighbors[4], int _neighbor_strides[4], int _mode);
 void od_intra_pred16x16_mult(double *_p, int _pred_stride,
- od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
+ od_coeff *__restrict _neighbors[4], int _neighbor_strides[4], int _mode);
 
 /*Fetches intra prediction to a 4x4 block of coefficients at _c, using
    UR, UL, U, and L blocks of reconstructed 4x4 coefficients.
