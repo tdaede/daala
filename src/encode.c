@@ -830,10 +830,10 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
          and store it in the od_state bsize. */
       for (k = 0; k < 4; k++) {
         for (m = 0; m < 4; m++) {
-#if 1
+#if 0
           state_bsize[k*bstride + m] = OD_MINI(bsize[k][m], 2);
 #else
-          state_bsize[k*bstride + m] = 1;
+          state_bsize[k*bstride + m] = 0;
 #endif
         }
       }

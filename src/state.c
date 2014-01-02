@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include <string.h>
 #include <stdio.h>
 #include "state.h"
+#include "intra.h"
 #if defined(OD_X86ASM)
 # include "x86/x86int.h"
 #endif
@@ -210,6 +211,7 @@ int od_state_init(od_state *state, const daala_info *info) {
     state->pvq_exg[i] = 2 << 16;
     state->pvq_ext[i] = 2 << 16;
   }
+  od_intra_init_fixed();
   return 0;
 }
 

@@ -32,14 +32,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 
 typedef void (*od_intra_mult_func)(double *_p, int _pred_stride,
  od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
+typedef void (*od_intra_mult_func_fp)(od_coeff *_p, int _pred_stride,
+ od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
 
 extern const od_intra_mult_func OD_INTRA_MULT[OD_NBSIZES+1];
+extern const od_intra_mult_func_fp OD_INTRA_MULT_FP[OD_NBSIZES+1];
+
 
 extern const double OD_INTRA_PRED_WEIGHTS_4x4[OD_INTRA_NMODES][4][4][2*4][2*4];
 extern const unsigned char OD_INTRA_PRED_PROB_4x4[3]
  [OD_INTRA_NMODES][OD_INTRA_NCONTEXTS];
+ 
+void od_intra_init_fixed(void);
 
 void od_intra_pred4x4_mult(double *_p, int _pred_stride,
+ od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
+ void od_intra_pred4x4_mult_fixed(od_coeff *_p, int _pred_stride,
  od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
 void od_intra_pred8x8_mult(double *_p, int _pred_stride,
  od_coeff *_neighbors[4], int _neighbor_strides[4], int _mode);
