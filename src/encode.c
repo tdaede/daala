@@ -382,8 +382,12 @@ void od_single_band_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
         (*OD_INTRA_DIST[ln])(mode_dist, d + (by << 2)*w + (bx << 2), w,
          coeffs, strides);
         /*Lambda = 1*/
+#if 0
         mode = od_intra_pred_search(mode_cdf, mode_dist,
          OD_INTRA_NMODES, 256);
+#else
+        mode = 0;
+#endif
         (*OD_INTRA_GET[ln])(pred, coeffs, strides, mode);
 #if defined(OD_METRICS)
         intra_frac_bits = od_ec_enc_tell_frac(&enc->ec);
