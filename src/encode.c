@@ -392,7 +392,9 @@ void od_single_band_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
 #if defined(OD_METRICS)
         intra_frac_bits = od_ec_enc_tell_frac(&enc->ec);
 #endif
+#if 0
         od_ec_encode_cdf_unscaled(&enc->ec, mode, mode_cdf, OD_INTRA_NMODES);
+#endif
 #if defined(OD_METRICS)
         enc->state.bit_metrics[OD_METRIC_INTRA] +=
          od_ec_enc_tell_frac(&enc->ec) - intra_frac_bits;
