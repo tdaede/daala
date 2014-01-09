@@ -800,9 +800,11 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
   /*Dump YUV*/
   od_state_dump_yuv(&dec->state, dec->state.io_imgs + OD_FRAME_REC, "decout");
 #endif
+#if 0
   od_state_upsample8(&dec->state,
    dec->state.ref_imgs + dec->state.ref_imgi[OD_FRAME_SELF],
    dec->state.io_imgs + OD_FRAME_REC);
+#endif
   /*Return decoded frame.*/
   *img = dec->state.io_imgs[OD_FRAME_REC];
   img->width = dec->state.info.pic_width;
