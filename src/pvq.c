@@ -281,7 +281,7 @@ static int neg_deinterleave(int x, int ref) {
   else return x+1;
 }
 
-void pvq_synthesis(od_coeff *x0, int *y, const double *r, int n, int noref,
+void pvq_synthesis(od_coeff *x0, od_coeff *y, const double *r, int n, int noref,
  int qg, double gain_offset, double theta, int m, int s, double q) {
   int i;
   int yy;
@@ -335,7 +335,7 @@ void pvq_synthesis(od_coeff *x0, int *y, const double *r, int n, int noref,
    @param [out]    vk        total number of pulses
    @return         gain      index of the quatized gain
 */
-int pvq_theta(od_coeff *x0, od_coeff *r0, int n, int q0, int *y, int *itheta,
+int pvq_theta(od_coeff *x0, od_coeff *r0, int n, int q0, od_coeff *y, int *itheta,
  int *max_theta, int *vk) {
   double l2x;
   double l2r;
@@ -1146,14 +1146,14 @@ int quant_pvq_theta(ogg_int32_t *x0, const ogg_int32_t *r0,
  *
  * @retval position that should have the most pulses in _y
  */
-int quant_pvq(ogg_int32_t *x0, const ogg_int32_t *r0, ogg_int16_t *scale0,
+int quant_pvq(od_coeff *x0, const od_coeff *r0, ogg_int16_t *scale0,
  int *y, int n, int q0, int *qg, int shift, int intra) {
   int l2x;
   int l2r;
   int g;               /* L2-norm of x */
   int gr;              /* L2-norm of r */
   int x[MAXN];
-  int r[MAXN];
+  od_coeff r[MAXN];
   int scale[MAXN];
   int q;
   int scale_1[MAXN];
@@ -1321,12 +1321,12 @@ int pvq_unquant_k(const ogg_int32_t *r, int n, int qg, int q0,
  * @param [in]    qg     quantized gain
  *
  */
-void dequant_pvq(ogg_int32_t *x0, const ogg_int32_t *r0, ogg_int16_t *scale0,
+void dequant_pvq(od_coeff *x0, const od_coeff *r0, ogg_int16_t *scale0,
  int n, int q0, int qg, int shift, int intra) {
   int l2r;
   int gr;              /* L2-norm of r */
   int x[MAXN];
-  int r[MAXN];
+  od_coeff r[MAXN];
   int scale[MAXN];
   int q;
   int scale_1[MAXN];
