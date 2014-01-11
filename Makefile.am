@@ -21,6 +21,7 @@ noinst_HEADERS = \
 	src/entenc.h \
 	src/filter.h \
 	src/generic_code.h \
+	src/hw.h \
 	src/internal.h \
 	src/intra.h \
 	src/intradata_4x4.h \
@@ -56,6 +57,7 @@ src_libdaalabase_la_SOURCES = \
 	src/generic_code.c \
 	src/generic_decoder.c \
 	src/generic_encoder.c \
+	src/hw.c \
 	src/info.c \
 	src/internal.c \
 	src/intra.c \
