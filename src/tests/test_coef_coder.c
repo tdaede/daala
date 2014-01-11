@@ -403,7 +403,11 @@ int main(int argc, char **argv){
     }
     for(i=0;i<len;i++)
       for(j=0;j<N;j++)
+#if (OD_COEFF_BITS == 16)
+        if(fscanf(file,"%hd",&X[i*N+j])!=1)
+#else
         if(fscanf(file,"%d",&X[i*N+j])!=1)
+#endif
           return 1;
     bits = run_pvq(X, len, N, 0);
     fprintf(stderr, "Coded file with %f bits/sample (%f bits/vector)\n",bits/(float)len/N,bits/(float)len);
