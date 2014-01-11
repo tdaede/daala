@@ -33,6 +33,7 @@ typedef struct od_state          od_state;
 # include "pvq_code.h"
 # include "adapt.h"
 # include "generic_code.h"
+# include "hw.h"
 
 /*The golden reference frame.*/
 # define OD_FRAME_GOLD (0)
@@ -162,6 +163,7 @@ struct od_state{
 # if defined(OD_METRICS)
   ogg_int64_t bit_metrics[OD_METRIC_COUNT];
 # endif
+  od_hw_ctx hw;
 };
 
 

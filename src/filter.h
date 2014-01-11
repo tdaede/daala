@@ -26,8 +26,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # define _filter_H (1)
 # include "internal.h"
 
-typedef ogg_int32_t od_coeff;
-# define OD_COEFF_BITS (32)
+typedef ogg_int16_t od_coeff;
+# define OD_COEFF_BITS (16)
 
 /*This should translate directly to 3 or 4 instructions for a constant _b:
 #define OD_UNBIASED_RSHIFT(_a,_b) ((_a)+(((1<<(_b))-1)&-((_a)<0))>>(_b))*/

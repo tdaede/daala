@@ -36,6 +36,7 @@
 
 #define BRAM_ADDR (0xC0000000)
 #define BRAM_SIZE (8192)
+#define OCM_BUFFER_SIZE BRAM_SIZE
 
 void od_hw_init(od_hw_ctx *hw) {
   hw->fd = open("/dev/mem", O_RDWR|O_SYNC);
@@ -53,7 +54,7 @@ void od_hw_init(od_hw_ctx *hw) {
   printf("DMA enabled\n");
 }
 
-void od_hw_idct_4x4(od_hw_ctx *hw, int output_offset, int input_offset, int num_blocks) {
+void od_hw_idct4x4_ocm(od_hw_ctx *hw, int output_offset, int input_offset, int num_blocks) {
   OD_ASSERT(num_blocks < (BRAM_SIZE/BLOCK_4X4_BYTES));
   hw->dma[MM2S_SA] = OCM_ADDR + input_offset;
   hw->dma[MM2S_LENGTH] = BLOCK_4X4_BYTES * num_blocks;
@@ -65,4 +66,23 @@ void od_hw_idct_4x4(od_hw_ctx *hw, int output_offset, int input_offset, int num_
 	hw->dma[S2MM_DA] = OCM_ADDR + output_offset;
 	hw->dma[S2MM_LENGTH] = BLOCK_4X4_BYTES * num_blocks;
 	while(!(hw->dma[S2MM_DMASR] & DMA_Idle));
+}
+
+void od_hw_idct4x4(od_hw_ctx *hw, od_coeff *_x, int _xstride, const od_coeff *_y,
+ int _ystride) {
+  volatile uint8_t * ocm = hw->ocm;
+  int i;
+  for (i = 0; i < 4; i++) {
+    *((uint16_t*)(ocm + OCM_BUFFER_SIZE + i*4 + 0)) = *(_y + i*_ystride + 0);
+    *((uint16_t*)(ocm + OCM_BUFFER_SIZE + i*4 + 1)) = *(_y + i*_ystride + 1);
+    *((uint16_t*)(ocm + OCM_BUFFER_SIZE + i*4 + 2)) = *(_y + i*_ystride + 2);
+    *((uint16_t*)(ocm + OCM_BUFFER_SIZE + i*4 + 3)) = *(_y + i*_ystride + 3);
+  }
+  od_hw_idct4x4_ocm(hw, 0, OCM_BUFFER_SIZE, 1);
+  for (i = 0; i < 4; i++) {
+    *(_x + i*_xstride + 0) = *((uint16_t*)(ocm + i*4 + 0));
+    *(_x + i*_xstride + 0) = *((uint16_t*)(ocm + i*4 + 0));
+    *(_x + i*_xstride + 0) = *((uint16_t*)(ocm + i*4 + 0));
+    *(_x + i*_xstride + 0) = *((uint16_t*)(ocm + i*4 + 0));
+  }
 }

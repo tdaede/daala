@@ -26,6 +26,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # define _dct_H (1)
 # include <math.h>
 # include "filter.h"
+# include "state.h"
 
 # if !defined(M_PI)
 #  define M_PI      (3.1415926535897932384626433832795)
@@ -71,6 +72,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
    [-1024,1023).*/
 
 typedef void (*od_dct_func_2d)(od_coeff *_out, int _out_stride,
+ const od_coeff *_in, int _in_stride);
+ 
+typedef void (*od_dct_func_2d_async)(od_hw_ctx *hw, od_coeff *_out, int _out_stride,
  const od_coeff *_in, int _in_stride);
 
 typedef void (*od_fdct_func_1d)(od_coeff *_out, const od_coeff *_in,

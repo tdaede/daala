@@ -210,6 +210,7 @@ int od_state_init(od_state *state, const daala_info *info) {
     state->pvq_exg[i] = 2 << 16;
     state->pvq_ext[i] = 2 << 16;
   }
+  od_hw_init(&state->hw);
   return 0;
 }
 

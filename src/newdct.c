@@ -27,6 +27,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #endif
 
 #include "dct.h"
+#include "hw.h"
 
 /*Adjustments for the quantization step in Q15, a factor of 2^(1/4) per
  octave due to the 3/4 power in the quantizer.*/
@@ -109,6 +110,12 @@ const od_dct_func_2d OD_IDCT_2D[OD_NBSIZES + 1] = {
   od_bin_idct4x4,
   od_bin_idct8x8,
   od_bin_idct16x16
+};
+
+const od_dct_func_2d_async OD_IDCT_2D_ASYNC[OD_NBSIZES + 1] = {
+  od_hw_idct4x4,
+  0,
+  0
 };
 
 const od_fdct_func_1d OD_FDCT_1D[OD_NBSIZES + 1] = {
