@@ -787,7 +787,7 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
         ystride = dec->state.io_imgs[OD_FRAME_REC].planes[pli].ystride;
         for (y = 0; y < h; y++) {
           for (x = 0; x < w; x++) {
-            data[ystride*y + x] = OD_CLAMP255(ctmp[pli][y*w + x] + 128);
+            data[ystride*y + x] = ctmp[pli][y*w + x] + 128;
           }
         }
       }
