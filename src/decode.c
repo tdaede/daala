@@ -405,7 +405,7 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
      d + (by << 2)*w + (bx << 2), w, ln, 0);
   }
   /*Apply the inverse transform.*/
-  printf("IDCT: pli: %d bx: %d by: %d ln: %d\n", pli, bx, by, ln);
+  /*printf("IDCT: pli: %d bx: %d by: %d ln: %d\n", pli, bx, by, ln);*/
   od_hw_submit_block(&dec->state.hw,c+(by<<2)*w + (bx <<2), w, d + (by << 2)*w + (bx << 2),w);
   /*
   (*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w,

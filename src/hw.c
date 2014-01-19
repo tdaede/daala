@@ -105,11 +105,8 @@ void od_hw_copy_block(od_coeff *_x, int _xstride, od_coeff *_y, int _ystride) {
 
 void od_hw_submit_block(od_hw_ctx *hw, od_coeff *_x, int _xstride, od_coeff *_y, int _ystride) {
   int i;
-  printf("Copying block %d at %x with stride %d to %x\n",hw->block_queue_index,_y,_ystride,hw->block_in + hw->block_queue_index*16);
   if ((hw->block_queue_index+1) > (OCM_BUFFER_SIZE/(16*2))) {
-    printf("Forcing HW flush\n");
     od_hw_flush(hw);
-    return;
   }
   hw->block_queue[hw->block_queue_index].dest = _x;
   hw->block_queue[hw->block_queue_index].stride = _xstride;
