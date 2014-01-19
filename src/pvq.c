@@ -447,7 +447,7 @@ int pvq_theta(od_coeff *x0, od_coeff *r0, int n, int q0, od_coeff *y, int *ithet
           best_qtheta = qtheta;
           *itheta = j;
           *max_theta = ts;
-          memcpy(y, y_tmp, sizeof(od_coeff)*n);
+          memcpy(y, y_tmp, sizeof(y[0])*n);
         }
       }
     }
@@ -475,7 +475,11 @@ int pvq_theta(od_coeff *x0, od_coeff *r0, int n, int q0, od_coeff *y, int *ithet
         best_k = k;
         *itheta = -1;
         *max_theta = 0;
+<<<<<<< variant A
         memcpy(y, y_tmp, sizeof(od_coeff)*n);
+>>>>>>> variant B
+        memcpy(y, y_tmp, sizeof(y[0])*n);
+======= end
       }
     }
   }
@@ -1570,3 +1574,4 @@ int quant_scalar(ogg_int32_t *_x, const ogg_int32_t *_r,
   for (i = 0; i < N; i++) _x[i] = _r[i]+Q2*y[i];
   return Kn;
 }
+
