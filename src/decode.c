@@ -405,8 +405,12 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
      d + (by << 2)*w + (bx << 2), w, ln, 0);
   }
   /*Apply the inverse transform.*/
+  printf("IDCT: pli: %d bx: %d by: %d ln: %d\n", pli, bx, by, ln);
+  od_hw_submit_block(&dec->state.hw,c+(by<<2)*w + (bx <<2), w, d + (by << 2)*w + (bx << 2),w);
+  /*
   (*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w,
    d + (by << 2)*w + (bx << 2), w);
+  */
 }
 
 static void od_32x32_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
@@ -732,6 +736,7 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
           adapt_sb = &dec->state.adapt_sb[pli];
           od_adapt_get_stats(adapt_sb, sbx, adapt_hmean[pli],
            mbctx.adapt);
+          printf("Decoding superblock: pli: %d sbx: %d sby: %d\n", pli,sbx,sby);
           od_decode_block(dec, &mbctx, pli, sbx, sby, 3, xdec, ydec,
            sby > 0 && sbx < nhsb - 1);
           if (mbctx.nk > 0) {
@@ -761,6 +766,7 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
         od_adapt_row_backward(&dec->state.adapt_sb[pli]);
       }
     }
+    od_hw_flush(&dec->state.hw);
     for (pli = 0; pli < nplanes; pli++) {
       xdec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
       ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
