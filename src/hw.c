@@ -50,6 +50,7 @@ void od_hw_init(od_hw_ctx *hw) {
   hw->ocm = mmap(0, 1024*256, PROT_READ|PROT_WRITE, MAP_SHARED, hw->fd, 0xfffc0000);
   hw->dma = mmap(0, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, hw->fd, 0x40400000);
   hw->block_in = hw->ocm;
+  hw->block_out = hw->ocm + OCM_BUFFER_SIZE;
   printf("Resetting DMA...\n");
   hw->dma[MM2S_DMACR] |= DMA_Reset;
   while(hw->dma[MM2S_DMACR] & DMA_Reset);
@@ -105,21 +106,33 @@ void od_hw_copy_block(od_coeff *_x, int _xstride, od_coeff *_y, int _ystride) {
 void od_hw_submit_block(od_hw_ctx *hw, od_coeff *_x, int _xstride, od_coeff *_y, int _ystride) {
   int i;
   printf("Copying block %d at %x with stride %d to %x\n",hw->block_queue_index,_y,_ystride,hw->block_in + hw->block_queue_index*16);
+  if ((hw->block_queue_index+1) > (OCM_BUFFER_SIZE/(16*2))) {
+    printf("Forcing HW flush\n");
+    od_hw_flush(hw);
+    return;
+  }
   hw->block_queue[hw->block_queue_index].dest = _x;
   hw->block_queue[hw->block_queue_index].stride = _xstride;
+  /*
   for (i = 0; i < 4; i++) {
     memcpy((void*)(&hw->block_in[hw->block_queue_index*16 + i*4]), (void*)(_y + i*_ystride), sizeof(od_coeff)*4);
   }
+  */
+  od_hw_copy_block(&hw->block_in[hw->block_queue_index*16],4,_y,_ystride);
   hw->block_queue_index++;
 }
 
 void od_hw_flush(od_hw_ctx *hw) {
   printf("Flushing %d blocks to hardware\n",hw->block_queue_index);
   int i;
+  /*
   for (i = 0; i < hw->block_queue_index; i++) {
     od_bin_idct4x4(&hw->block_out[i*16],4,&hw->block_in[i*16],4);
   }
+  */
+  od_hw_idct4x4_ocm(hw,OCM_BUFFER_SIZE,0,hw->block_queue_index);
   for (i = 0; i < hw->block_queue_index; i++) {
     od_hw_copy_block(hw->block_queue[i].dest,hw->block_queue[i].stride,&hw->block_out[i*16],4);
   }
+  hw->block_queue_index = 0;
 }
