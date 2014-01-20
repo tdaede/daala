@@ -85,7 +85,7 @@ void od_intra_pred16x16_dist(ogg_uint32_t *dist,
 
 extern const int OD_INTRA_CHROMA_WEIGHTS_Q8[OD_INTRA_NMODES][3];
 
-void od_chroma_pred(od_coeff *p, const od_coeff *c, const od_coeff *l,
+void od_chroma_pred(od_coeff *__restrict__ p, const od_coeff *__restrict__ c, const od_coeff *__restrict__ l,
  int stride, int bx, int by, int ln, int xdec, int ydec,
   const unsigned char *bsize, int bstride, const int weights_q8[3]);
 
