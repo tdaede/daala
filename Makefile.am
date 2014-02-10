@@ -27,9 +27,11 @@ noinst_HEADERS = \
 	src/intradata_4x4.h \
 	src/intradata_8x8.h \
 	src/intradata_16x16.h \
+	src/laplace_code.h \
 	src/logging.h \
 	src/mc.h \
 	src/odintrin.h \
+	src/partition.h \
 	src/pvq.h \
 	src/pvq_code.h \
 	src/state.h \
@@ -62,11 +64,15 @@ src_libdaalabase_la_SOURCES = \
 	src/internal.c \
 	src/intra.c \
 	src/intradata.c \
+	src/laplace_decoder.c \
+	src/laplace_encoder.c \
 	src/laplace_tables.c \
 	src/logging.c \
 	src/mc.c \
 	src/newdct.c \
+	src/partition.c \
 	src/pvq.c \
+	src/pvq_code.c \
 	src/pvq_decoder.c \
 	src/pvq_encoder.c \
 	src/state.c \
@@ -163,7 +169,13 @@ tools_TARGETS = \
 	tools/gen_cdf \
 	tools/gen_laplace_tables \
 	tools/dump_ssim \
-	tools/dump_fastssim
+	tools/dump_fastssim \
+	tools/bjontegaard \
+	tools/yuvjpeg \
+	tools/jpegyuv \
+	tools/yuv2yuv4mpeg \
+	tools/dump_psnr
+
 
 noinst_HEADERS += \
 	tools/cholesky.h \
@@ -225,6 +237,14 @@ tools_dump_fastssim_SOURCES = \
 	tools/dump_fastssim.c
 tools_dump_fastssim_CFLAGS = $(THEORA_CFLAGS) $(OGG_CFLAGS)
 tools_dump_fastssim_LDADD = $(THEORA_LIBS) $(OGG_LIBS) $(LIBM)
+
+# dump_psnr
+tools_dump_psnr_SOURCES = \
+	tools/vidinput.c \
+	tools/y4m_input.c \
+	tools/dump_psnr.c
+tools_dump_psnr_CFLAGS = $(THEORA_CFLAGS) $(OGG_CFLAGS) $(PNG_CFLAGS)
+tools_dump_psnr_LDADD = $(THEORA_LIBS) $(OGG_LIBS) $(PNG_LIBS) $(LIBM)
 
 # block_size_analysis
 tools_block_size_analysis_SOURCES = \
@@ -444,6 +464,33 @@ tools_gen_laplace_tables_SOURCES = \
 tools_gen_laplace_tables_CFLAGS = $(OGG_CFLAGS) $(PNG_CFLAGS)
 tools_gen_laplace_tables_LDADD = $(OGG_LIBS) $(PNG_LIBS) $(LIBM)
 
+# bjontegaard
+tools_bjontegaard_SOURCES = \
+	tools/bjontegaard.c \
+	tools/cholesky.c \
+	tools/qr.c \
+	tools/svd.c
+tools_bjontegaard_CFLAGS =
+tools_bjontegaard_LDADD = $(LIBM)
+
+# yuvjpeg
+tools_yuvjpeg_SOURCES = \
+	tools/yuvjpeg.c
+tools_yuvjpeg_CFLAGS =
+tools_yuvjpeg_LDADD = $(JPEG_LIBS)
+
+# jpegyuv
+tools_jpegyuv_SOURCES = \
+	tools/jpegyuv.c
+tools_jpegyuv_CFLAGS =
+tools_jpegyuv_LDADD = $(JPEG_LIBS)
+
+# yuv2yuv4mpeg
+tools_yuv2yuv4mpeg_SOURCES = \
+	tools/yuv2yuv4mpeg.c
+tools_yuv2yuv4mpeg_CFLAGS =
+tools_yuv2yuv4mpeg_LDADD =
+
 
 # Tests
 
@@ -580,7 +627,7 @@ pkgconfig_DATA = daalaenc.pc daaladec.pc
 
 debug: DEBUG_OPTIONS = -DOD_ENABLE_ASSERTIONS -DOD_LOGGING_ENABLED
 debug:
-	$(MAKE) CFLAGS="$(CFLAGS) -O0 -ggdb $(DEBUG_OPTIONS)" all
+	$(MAKE) CFLAGS="$(CFLAGS) -O0 -ggdb3 $(DEBUG_OPTIONS)" all
 
 EXTRA_DIST = \
 	daalaenc.pc.in \

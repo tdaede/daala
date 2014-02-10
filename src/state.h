@@ -30,7 +30,7 @@ typedef struct od_state          od_state;
 
 # include "internal.h"
 # include "mc.h"
-# include "pvq_code.h"
+# include "pvq.h"
 # include "adapt.h"
 # include "generic_code.h"
 # include "hw.h"
@@ -89,10 +89,6 @@ extern const int *const OD_VERT_SETUP_DY[4][4];
 
 /*The shared (encoder and decoder) functions that have accelerated variants.*/
 struct od_state_opt_vtbl{
-  void (*mc_predict1imv8)(unsigned char *_dst, int _dystride,
-   const unsigned char *_src, int _systride, const ogg_int32_t _mvx[4],
-   const ogg_int32_t _mvy[4], const int _m[4], int _r, int _log_xblk_sz,
-   int _log_yblk_sz);
   void (*mc_predict1fmv8)(unsigned char *_dst, const unsigned char *_src,
    int _systride, ogg_int32_t _mvx, ogg_int32_t _mvy,
    int _log_xblk_sz, int _log_yblk_sz);
@@ -125,10 +121,13 @@ struct od_state{
   ogg_int64_t         cur_time;
   od_mv_grid_pt **mv_grid;
   od_adapt_ctx        adapt_sb[OD_NPLANES_MAX];
+
+  /* Support for PVQ encode/decode */
   int                 pvq_adapt[OD_NSB_ADAPT_CTXS];
   generic_encoder     pvq_gain_model;
-  int                 pvq_ext[4];
-  int                 pvq_exg[4];
+  int                 pvq_ext[PVQ_MAX_PARTITIONS];
+  int                 pvq_exg[PVQ_MAX_PARTITIONS];
+
   /** number of horizontal macro blocks. */
   int                 nhmbs;
   /** number of vertical macro blocks. */
@@ -193,10 +192,6 @@ void od_state_fill_vis(od_state *_state);
 /*Shared accelerated functions.*/
 
 /*Default pure-C implementations.*/
-void od_mc_predict1imv8_c(unsigned char *_dst, int _dystride,
- const unsigned char *_src, int _systride, const ogg_int32_t _mvx[4],
- const ogg_int32_t _mvy[4], const int _m[4], int _r, int _log_xblk_sz,
- int _log_yblk_sz);
 void od_mc_predict1fmv8_c(unsigned char *_dst, const unsigned char *_src,
  int _systride, ogg_int32_t _mvx, ogg_int32_t _mvy,
  int _log_xblk_sz, int _log_yblk_sz);

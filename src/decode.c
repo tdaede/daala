@@ -33,9 +33,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include <string.h>
 #include "decint.h"
 #include "generic_code.h"
+#include "laplace_code.h"
 #include "filter.h"
 #include "dct.h"
 #include "intra.h"
+#include "partition.h"
 #include "pvq.h"
 #include "pvq_code.h"
 #include "block_size.h"
@@ -107,17 +109,17 @@ struct od_mb_dec_ctx {
   generic_encoder model_g[OD_NPLANES_MAX];
   generic_encoder model_ym[OD_NPLANES_MAX];
   ogg_int32_t adapt[OD_NSB_ADAPT_CTXS];
-  signed char *modes;
+  signed char *modes[OD_NPLANES_MAX];
   od_coeff *c;
   od_coeff **d;
   /* holds a TF'd copy of the transform coefficients in 4x4 blocks */
-  od_coeff *tf;
+  od_coeff *tf[OD_NPLANES_MAX];
   od_coeff *md;
   od_coeff *mc;
   od_coeff *l;
   int run_pvq[OD_NPLANES_MAX];
-  int ex_dc[OD_NPLANES_MAX];
-  int ex_g[OD_NPLANES_MAX];
+  int ex_dc[OD_NPLANES_MAX][OD_NBSIZES];
+  int ex_g[OD_NPLANES_MAX][OD_NBSIZES];
   int is_keyframe;
   int nk;
   int k_total;
@@ -128,51 +130,6 @@ struct od_mb_dec_ctx {
   ogg_uint16_t mode_p0[OD_INTRA_NMODES];
 };
 typedef struct od_mb_dec_ctx od_mb_dec_ctx;
-
-static void od_band_decode(od_ec_dec *ec, int q, int n, generic_encoder *model,
- int *adapt, int *exg, int *ext, od_coeff *r0,  od_coeff *x0, int noref) {
-  int adapt_curr[OD_NSB_ADAPT_CTXS] = {0};
-  int speed = 5;
-  int k;
-  int qg;
-  double qcg;
-  double gain_offset;
-  double theta;
-  int itheta;
-  int max_theta;
-  int m;
-  int s;
-  double gr;
-  double r[1024];
-  od_coeff y[1024];
-  int i;
-  qg = generic_decode(ec, model, exg, 2);
-  max_theta = od_compute_max_theta(r0, n, q, &gr, &qcg, &qg, &gain_offset,
-   noref);
-  if (!noref && max_theta>0) itheta = generic_decode(ec, model, ext, 2);
-  else itheta = noref ? 0 : -1;
-  theta = od_compute_k_theta(&k, qcg, itheta, max_theta, noref, n);
-  pvq_decoder(ec, y, n-(!noref), k, adapt_curr, adapt);
-  for (i = 0; i < n; i++) r[i] = r0[i];
-  m = compute_householder(r, n, gr, &s);
-  if (!noref) {
-    for (i = n; i > m; i--) y[i] = y[i-1];
-    y[m] = 0;
-  }
-  pvq_synthesis(x0, y, r, n, noref, qg, gain_offset, theta, m, s, q);
-  if (adapt_curr[OD_ADAPT_K_Q8] > 0) {
-    adapt[OD_ADAPT_K_Q8]
-     += 256*adapt_curr[OD_ADAPT_K_Q8]-adapt[OD_ADAPT_K_Q8]>>speed;
-    adapt[OD_ADAPT_SUM_EX_Q8]
-     += adapt_curr[OD_ADAPT_SUM_EX_Q8]-adapt[OD_ADAPT_SUM_EX_Q8]>>speed;
-  }
-  if (adapt_curr[OD_ADAPT_COUNT_Q8] > 0) {
-    adapt[OD_ADAPT_COUNT_Q8]
-     += adapt_curr[OD_ADAPT_COUNT_Q8]-adapt[OD_ADAPT_COUNT_Q8]>>speed;
-    adapt[OD_ADAPT_COUNT_EX_Q8]
-     += adapt_curr[OD_ADAPT_COUNT_EX_Q8]-adapt[OD_ADAPT_COUNT_EX_Q8]>>speed;
-  }
-}
 
 void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
  int pli, int bx, int by, int has_ur) {
@@ -198,31 +155,31 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
   int vk;
   int run_pvq;
   int scale;
-#ifndef USE_PSEUDO_ZIGZAG
+#ifndef USE_BAND_PARTITIONS
   unsigned char const *zig;
 #endif
   OD_ASSERT(ln >= 0 && ln <= 2);
   n = 1 << (ln + 2);
-  /* The new PVQ is only supported on 8x8 for now. */
-  run_pvq = ctx->run_pvq[pli] && (n == 4 || n == 8);
+  run_pvq = ctx->run_pvq[pli];
   n2 = n*n;
   bx <<= ln;
   by <<= ln;
-#ifndef USE_PSEUDO_ZIGZAG
+#ifndef USE_BAND_PARTITIONS
   zig = OD_DCT_ZIGS[ln];
 #endif
   xdec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
   ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
   frame_width = dec->state.frame_width;
   w = frame_width >> xdec;
-  modes = ctx->modes;
+  modes = ctx->modes[OD_DISABLE_CFL ? pli : 0];
   c = ctx->c;
   d = ctx->d[pli];
-  tf = ctx->tf;
+  /*We never use tf on the chroma planes, but if we do it will blow up, which
+    is better than always using luma's tf.*/
+  tf = ctx->tf[pli];
   md = ctx->md;
   mc = ctx->mc;
   l = ctx->l;
-  vk = 0;
   /*Apply forward transform to MC predictor.*/
   if (!ctx->is_keyframe) {
     (*OD_FDCT_2D[ln])(md + (by << 2)*w + (bx << 2), w,
@@ -230,7 +187,7 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
   }
   if (ctx->is_keyframe) {
     if (bx > 0 && by > 0) {
-      if (pli == 0) {
+      if (pli == 0 || OD_DISABLE_CFL) {
         ogg_uint16_t mode_cdf[OD_INTRA_NMODES];
         int m_l;
         int m_ul;
@@ -253,15 +210,17 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
         m_l = modes[by*(w >> 2) + bx - 1];
         m_ul = modes[(by - 1)*(w >> 2) + bx - 1];
         m_u = modes[(by - 1)*(w >> 2) + bx];
-#if 0
         od_intra_pred_cdf(mode_cdf, OD_INTRA_PRED_PROB_4x4[pli],
          ctx->mode_p0, OD_INTRA_NMODES, m_l, m_ul, m_u);
-        mode = od_ec_decode_cdf_unscaled(&dec->ec, mode_cdf,
-         OD_INTRA_NMODES);
+#if OD_DISABLE_INTRA
+        mode = 0;
 #else
-	mode = 0;
+        mode = od_ec_decode_cdf_unscaled(&dec->ec, mode_cdf, OD_INTRA_NMODES);
 #endif
         (*OD_INTRA_GET[ln])(pred, coeffs, strides, mode);
+#if OD_DISABLE_INTRA
+        OD_CLEAR(pred+1, n2-1);
+#endif
         for (y = 0; y < (1 << ln); y++) {
           for (x = 0; x < (1 << ln); x++) {
             modes[(by + y)*(w >> 2) + bx + x] = mode;
@@ -325,8 +284,8 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
       }
     }
   }
-#ifdef USE_PSEUDO_ZIGZAG
-  od_band_pseudo_zigzag(predt,  n, &pred[0], n, !run_pvq);
+#ifdef USE_BAND_PARTITIONS
+  od_raster_to_coding_order(predt,  n, &pred[0], n, !run_pvq);
 #else
   /*Zig-zag*/
   for (y = 0; y < n; y++) {
@@ -337,46 +296,17 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
 #endif
   scale = OD_MAXI(dec->scale[pli], 1);
   pred[0] = generic_decode(&dec->ec, ctx->model_dc + pli,
-   ctx->ex_dc + pli, 0);
+   &ctx->ex_dc[pli][ln], 0);
   if (pred[0]) pred[0] *= od_ec_dec_bits(&dec->ec, 1) ? -1 : 1;
   pred[0] = pred[0]*scale + predt[0];
   if (run_pvq) {
-    int noref[4];
-    int *adapt;
-    int *exg;
-    int *ext;
-    int predflags8;
     int i;
-    generic_encoder *model;
-    adapt = dec->state.pvq_adapt;
-    exg = dec->state.pvq_exg;
-    ext = dec->state.pvq_ext;
-    model = &dec->state.pvq_gain_model;
-    if (n == 4) {
-      noref[0] = !od_ec_decode_bool_q15(&dec->ec, PRED4_PROB);
-      od_band_decode(&dec->ec, scale, 15, model, adapt, exg, ext, predt+1,
-       pred+1, noref[0]);
-    }
-    else {
-      predflags8 = od_ec_decode_cdf_q15(&dec->ec, pred8_cdf, 16);
-      noref[0] = !(predflags8>>3);
-      noref[1] = !((predflags8>>2) & 0x1);
-      noref[2] = !((predflags8>>1) & 0x1);
-      noref[3] = !(predflags8 & 0x1);
-      od_band_decode(&dec->ec, scale, 15, model, adapt, exg, ext, predt+1,
-       pred+1, noref[0]);
-      od_band_decode(&dec->ec, scale, 8, model, adapt, exg+1, ext+1, predt+16,
-       pred+16, noref[1]);
-      od_band_decode(&dec->ec, scale, 8, model, adapt, exg+2, ext+2, predt+24,
-       pred+24, noref[2]);
-      od_band_decode(&dec->ec, scale, 32, model, adapt, exg+3, ext+3, predt+32,
-       pred+32, noref[3]);
-    }
+    pvq_decode(dec, predt, pred, scale, n);
     for (i = 0; i < OD_NSB_ADAPT_CTXS; i++) adapt_curr[i] = 0;
   }
   else {
-    vk = generic_decode(&dec->ec, ctx->model_g + pli, ctx->ex_g + pli, 0);
-    pvq_decoder(&dec->ec, pred + 1, n2 - 1, vk, adapt_curr, ctx->adapt);
+    vk = generic_decode(&dec->ec, ctx->model_g + pli, &ctx->ex_g[pli][ln], 0);
+    laplace_decode_vector(&dec->ec, pred + 1, n2 - 1, vk, adapt_curr, ctx->adapt);
     for (zzi = 1; zzi < n2; zzi++) pred[zzi] = pred[zzi]*scale + predt[zzi];
   }
   if (adapt_curr[OD_ADAPT_K_Q8] >= 0) {
@@ -389,8 +319,8 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
     ctx->count_total_q8 += adapt_curr[OD_ADAPT_COUNT_Q8];
     ctx->count_ex_total_q8 += adapt_curr[OD_ADAPT_COUNT_EX_Q8];
   }
-#ifdef USE_PSEUDO_ZIGZAG
-  od_band_pseudo_dezigzag(&d[((by << 2))*w + (bx << 2)], w, pred, n, !run_pvq);
+#ifdef USE_BAND_PARTITIONS
+  od_coding_order_to_raster(&d[((by << 2))*w + (bx << 2)], w, pred, n, !run_pvq);
 #else
   /*De-zigzag*/
   for (y = 0; y < n; y++) {
@@ -399,10 +329,10 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
     }
   }
 #endif
-  /* Update the TF'd luma plane. */
-  if (ctx->is_keyframe && pli == 0) {
+  /*Update the TF'd luma plane with CfL, or all the planes without CfL.*/
+  if (ctx->is_keyframe && (pli == 0 || OD_DISABLE_CFL)) {
     od_convert_block_down(tf + (by << 2)*w + (bx << 2), w,
-     d + (by << 2)*w + (bx << 2), w, ln, 0);
+     d + (by << 2)*w + (bx << 2), w, ln, 0, 0);
   }
   /*Apply the inverse transform.*/
   /*printf("IDCT: pli: %d bx: %d by: %d ln: %d\n", pli, bx, by, ln);*/
@@ -563,10 +493,19 @@ static void od_decode_block_sizes(od_dec_ctx *dec) {
   od_state_init_border_as_32x32(&dec->state);
   nhsb = dec->state.nhsb;
   nvsb = dec->state.nvsb;
-  for (i = 0; i < nvsb; i++) {
-    for (j = 0; j < nhsb; j++) {
-      od_block_size_decode(&dec->ec,
-       &dec->state.bsize[4*dec->state.bstride*i + 4*j], dec->state.bstride);
+  if (OD_LIMIT_LOG_BSIZE_MIN != OD_LIMIT_LOG_BSIZE_MAX) {
+    for (i = 0; i < nvsb; i++) {
+      for (j = 0; j < nhsb; j++) {
+        od_block_size_decode(&dec->ec,
+         &dec->state.bsize[4*dec->state.bstride*i + 4*j], dec->state.bstride);
+      }
+    }
+  } else {
+    for (i = 0; i < nvsb*4; i++) {
+      for (j = 0; j < nhsb*4; j++) {
+        dec->state.bsize[dec->state.bstride*i + j] =
+         OD_LIMIT_LOG_BSIZE_MIN - OD_LOG_BSIZE0;
+      }
     }
   }
 }
@@ -630,18 +569,24 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
     int y;
     int x;
     /*Initialize the data needed for each plane.*/
-    mbctx.modes = _ogg_calloc((frame_width >> 2)*(frame_height >> 2),
-     sizeof(*mbctx.modes));
+    nplanes = dec->state.info.nplanes;
+    for (pli = 0; pli < (OD_DISABLE_CFL ? nplanes : 1); pli++) {
+      xdec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+      ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+      mbctx.modes[pli] = _ogg_calloc((frame_width >> (2 + xdec))
+       *(frame_height >> (2 + ydec)), sizeof(*mbctx.modes[pli]));
+    }
     for (mi = 0; mi < OD_INTRA_NMODES; mi++) {
       mbctx.mode_p0[mi] = 32768/OD_INTRA_NMODES;
     }
-    nplanes = dec->state.info.nplanes;
     if (mbctx.is_keyframe) {
-      xdec = dec->state.io_imgs[OD_FRAME_REC].planes[0].xdec;
-      ydec = dec->state.io_imgs[OD_FRAME_REC].planes[0].ydec;
-      w = frame_width >> xdec;
-      h = frame_height >> ydec;
-      mbctx.tf = _ogg_calloc(w*h, sizeof(*mbctx.tf));
+      for (pli = 0; pli < (OD_DISABLE_CFL ? nplanes : 1); pli++) {
+        xdec = dec->state.io_imgs[OD_FRAME_REC].planes[pli].xdec;
+        ydec = dec->state.io_imgs[OD_FRAME_REC].planes[pli].ydec;
+        w = frame_width >> xdec;
+        h = frame_height >> ydec;
+        mbctx.tf[pli] = _ogg_calloc(w*h, sizeof(*mbctx.tf[pli]));
+      }
     }
     /*Apply the prefilter to the motion-compensated reference.*/
     if (!mbctx.is_keyframe) {
@@ -674,11 +619,14 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
       }
     }
     for (pli = 0; pli < nplanes; pli++) {
+      int lni;
       generic_model_init(mbctx.model_dc + pli);
       generic_model_init(mbctx.model_g + pli);
       generic_model_init(mbctx.model_ym + pli);
-      mbctx.ex_dc[pli] = pli > 0 ? 8 : 32768;
-      mbctx.ex_g[pli] = 8;
+      for (lni = 0; lni < OD_NBSIZES; lni++) {
+        mbctx.ex_dc[pli][lni] = pli > 0 ? 8 : 32768;
+        mbctx.ex_g[pli][lni] = 8;
+      }
       xdec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
       ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
       w = frame_width >> xdec;
@@ -729,8 +677,6 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
           mbctx.l = lbuf[pli];
           xdec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
           ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
-          w = frame_width >> xdec;
-          h = frame_height >> ydec;
           mbctx.nk = mbctx.k_total = mbctx.sum_ex_total_q8 = 0;
           mbctx.ncount = mbctx.count_total_q8 = mbctx.count_ex_total_q8 = 0;
           adapt_sb = &dec->state.adapt_sb[pli];
@@ -801,9 +747,13 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
         _ogg_free(mctmp[pli]);
       }
     }
-    _ogg_free(mbctx.modes);
+    for (pli = 0; pli < (OD_DISABLE_CFL ? nplanes : 1); pli++) {
+      _ogg_free(mbctx.modes[pli]);
+    }
     if (mbctx.is_keyframe) {
-      _ogg_free(mbctx.tf);
+      for (pli = 0; pli < (OD_DISABLE_CFL ? nplanes : 1); pli++) {
+        _ogg_free(mbctx.tf[pli]);
+      }
     }
   }
 #if defined(OD_DUMP_IMAGES)

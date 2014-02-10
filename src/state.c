@@ -155,7 +155,6 @@ static void od_state_mvs_init(od_state *state) {
 }
 
 void od_state_opt_vtbl_init_c(od_state *state) {
-  state->opt_vtbl.mc_predict1imv8 = od_mc_predict1imv8_c;
   state->opt_vtbl.mc_predict1fmv8 = od_mc_predict1fmv8_c;
   state->opt_vtbl.mc_blend_full8 = od_mc_blend_full8_c;
   state->opt_vtbl.mc_blend_full_split8 = od_mc_blend_full_split8_c;
@@ -179,8 +178,8 @@ int od_state_init(od_state *state, const daala_info *info) {
   if (nplanes <= 0 || nplanes > OD_NPLANES_MAX) return OD_EINVAL;
   /*The first plane (the luma plane) must not be subsampled.*/
   if (info->plane_info[0].xdec || info->plane_info[0].ydec) return OD_EINVAL;
-  memset(state, 0, sizeof(*state));
-  memcpy(&state->info, info, sizeof(*info));
+  OD_CLEAR(state, 1);
+  OD_COPY(&state->info, info, 1);
   /*Frame size is a multiple of a super block.*/
   state->frame_width = (info->pic_width + (OD_SUPERBLOCK_SIZE - 1)) &
    ~(OD_SUPERBLOCK_SIZE - 1);
@@ -206,7 +205,7 @@ int od_state_init(od_state *state, const daala_info *info) {
   state->pvq_adapt[OD_ADAPT_SUM_EX_Q8] = 256;
   state->pvq_adapt[OD_ADAPT_COUNT_Q8] = 104;
   state->pvq_adapt[OD_ADAPT_COUNT_EX_Q8] = 128;
-  for (i = 0; i < 4; i++) {
+  for (i = 0; i < PVQ_MAX_PARTITIONS; i++) {
     state->pvq_exg[i] = 2 << 16;
     state->pvq_ext[i] = 2 << 16;
   }
@@ -414,7 +413,7 @@ void od_state_upsample8(od_state *state, od_img *dimg, const od_img *simg) {
       /*Vertical filtering:*/
       if (y >= -ypad + 3) {
         if (y < 1 || y > h + 3) {
-          memcpy(dst - (xpad << 1),
+          OD_COPY(dst - (xpad << 1),
            state->ref_line_buf[(y - 3) & 7] - (xpad << 1),
            (w + (xpad << 1)) << 1);
           /*fprintf(stderr, "%3i: ", (y - 3) << 1);
@@ -423,7 +422,7 @@ void od_state_upsample8(od_state *state, od_img *dimg, const od_img *simg) {
           }
           fprintf(stderr, "\n");*/
           dst += diplane->ystride;
-          memcpy(dst - (xpad << 1),
+          OD_COPY(dst - (xpad << 1),
            state->ref_line_buf[(y - 3) & 7] - (xpad << 1),
            (w + (xpad << 1)) << 1);
           /*fprintf(stderr, "%3i: ", (y - 3) << 1 | 1);
@@ -441,7 +440,7 @@ void od_state_upsample8(od_state *state, od_img *dimg, const od_img *simg) {
           buf[3] = state->ref_line_buf[(y - 2) & 7];
           buf[4] = state->ref_line_buf[(y - 1) & 7];
           buf[5] = state->ref_line_buf[(y - 0) & 7];
-          memcpy(dst - (xpad << 1),
+          OD_COPY(dst - (xpad << 1),
            state->ref_line_buf[(y - 3) & 7] - (xpad << 1),
            (w + (xpad << 1)) << 1);
           /*fprintf(stderr, "%3i: ", (y - 3) << 1);
@@ -885,8 +884,6 @@ static void od_state_draw_mvs_block(od_state *state,
         mvy[(oc + 3) & 3] = (mvy[oc] + mvy[(oc + 3) & 3]) >> 1;
       }
     }
-    x0 = ((vx - 2) << 3) + (OD_UMV_PADDING << 1);
-    y0 = ((vy - 2) << 3) + (OD_UMV_PADDING << 1);
     for (k = 0; k < 4; k++) {
       x0 = (vx - 2 + (dxp[k] << log_mvb_sz) << 3) + (OD_UMV_PADDING << 1);
       y0 = (vy - 2 + (dyp[k] << log_mvb_sz) << 3) + (OD_UMV_PADDING << 1);
@@ -959,16 +956,16 @@ void od_state_fill_vis(od_state *state) {
   }
   /*Clear the border region.*/
   for (y = 0; y < (border >> ydec); y++) {
-    memset(img->planes[0].data + (img->planes[0].ystride)*y,
-     0, img->width >> xdec);
+    OD_CLEAR(img->planes[0].data + (img->planes[0].ystride)*y,
+     img->width >> xdec);
   }
   for (; y < (img->height - border) >> ydec; y++) {
-    memset(img->planes[0].data + img->planes[0].ystride*y, 0, border >> xdec);
-    memset(img->planes[0].data + img->planes[0].ystride*y
-     + ((img->width - border) >> xdec), 0, border >> xdec);
+    OD_CLEAR(img->planes[0].data + img->planes[0].ystride*y, border >> xdec);
+    OD_CLEAR(img->planes[0].data + img->planes[0].ystride*y
+     + ((img->width - border) >> xdec), border >> xdec);
   }
   for (; y < img->height >> ydec; y++) {
-    memset(img->planes[0].data + (img->planes[0].ystride)*y, 0,
+    OD_CLEAR(img->planes[0].data + (img->planes[0].ystride)*y,
      img->width >> xdec);
   }
   /*Clear the chroma planes.*/
@@ -1142,7 +1139,7 @@ void od_state_mc_predict(od_state *state, int ref) {
           blk_h = (img->height >> iplane->ydec) - blk_y;
         }
         for (y = blk_y; y < blk_y + blk_h; y++) {
-          memcpy(iplane->data + y*iplane->ystride + blk_x, p, blk_w);
+          OD_COPY(iplane->data + y*iplane->ystride + blk_x, p, blk_w);
           p += sizeof(buf[0]);
         }
       }

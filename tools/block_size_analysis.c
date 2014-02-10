@@ -413,11 +413,9 @@ int switch_decision(unsigned char *img, int w, int h, int stride, int ow, int oh
 #endif
       }
     }
-    if (0) {
-      int count32[28] = {0};
-      int count16[144] = {0};
-      int stats32[28] = {0};
-      int stats16[144] = {0};
+    if (1) {
+      int stats32[28][3] = {{0}};
+      int stats16[1024][8] = {{0}};
       int stats8[144][16] = {{0}};
       for (i = 2; i < h32 - 2; i++) {
         for (j = 2; j < w32 - 2; j++) {
@@ -429,32 +427,35 @@ int switch_decision(unsigned char *img, int w, int h, int stride, int ow, int oh
           bsize = &dec8[4*i][4*j];
           stride = sizeof(dec8[0])/sizeof(dec8[0][0]);
           id32 = od_block_size_prob32(bsize, stride);
-          count32[id32]++;
-          if (bsize[0] == 3) stats32[id32]++;
-          else for (k = 0; k < 2; k++) for (m = 0; m < 2; m++) {
-            int id16;
-            id16 = od_block_size_cdf16_id(&bsize[2*k*stride + 2*m], stride);
-            count16[id16]++;
-            OD_ASSERT(bsize[2*k*stride + 2*m]<=2);
-            stats16[id16] += bsize[2*k*stride + 2*m] == 2;
-            if (bsize[2*k*stride + 2*m] != 2) {
-              int id8;
-              OD_ASSERT(bsize[2*k*stride + 2*m]<=1);
-              OD_ASSERT(bsize[2*k*stride + 2*m + 1]<=1);
-              OD_ASSERT(bsize[2*k*stride + stride + 2*m]<=1);
-              OD_ASSERT(bsize[2*k*stride + stride + 2*m + 1]<=1);
-              id8 = 8*bsize[2*k*stride + 2*m] + 4*bsize[2*k*stride + 2*m + 1]
-               + 2*bsize[2*k*stride + stride + 2*m]
-               + bsize[2*k*stride + stride + 2*m + 1];
-              stats8[id16][id8]++;
+          stats32[id32][OD_MAXI(0,bsize[0]-1)]++;
+          if (bsize[0] != 3) {
+            int cdf16;
+            int split16;
+            cdf16 = od_block_size_prob16(bsize, stride);
+            split16 = 4*(bsize[2] == 2) + 2*(bsize[2*stride] == 2)
+             + (bsize[2 + 2*stride] == 2);
+            stats16[cdf16][split16]++;
+            for (k = 0; k < 2; k++) for (m = 0; m < 2; m++) {
+              int cdf8;
+              cdf8 = od_block_size_cdf8_id(&bsize[2*k*stride + 2*m], stride);
+              OD_ASSERT(bsize[2*k*stride + 2*m]<=2);
+              if (bsize[2*k*stride + 2*m] != 2) {
+                int split8;
+                OD_ASSERT(bsize[2*k*stride + 2*m]<=1);
+                OD_ASSERT(bsize[2*k*stride + 2*m + 1]<=1);
+                OD_ASSERT(bsize[2*k*stride + stride + 2*m]<=1);
+                OD_ASSERT(bsize[2*k*stride + stride + 2*m + 1]<=1);
+                split8 = 8*bsize[2*k*stride + 2*m] + 4*bsize[2*k*stride + 2*m + 1]
+                 + 2*bsize[2*k*stride + stride + 2*m]
+                 + bsize[2*k*stride + stride + 2*m + 1];
+                stats8[cdf8][split8]++;
+              }
             }
           }
         }
       }
-      for (i = 0; i < 28; i++) printf("%d ", count32[i]);
-      for (i = 0; i < 28; i++) printf("%d ", stats32[i]);
-      for (i = 0; i < 144; i++) printf("%d ", count16[i]);
-      for (i = 0; i < 144; i++) printf("%d ", stats16[i]);
+      for (i = 0; i < 28; i++) for (j = 0; j < 3; j++) printf("%d ", stats32[i][j]);
+      for (i = 0; i < 64; i++) for (j = 0; j < 8; j++) printf("%d ", stats16[i][j]);
       for (i = 0; i < 144; i++) for (j = 0; j < 16; j++) printf("%d ", stats8[i][j]);
       printf("\n");
     }

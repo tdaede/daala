@@ -355,10 +355,7 @@ static const struct option OPTIONS[]={
   {"video-quality",required_argument,NULL,'v'},
   {"video-rate-target",required_argument,NULL,'V'},
   {"keyframe-rate",required_argument,NULL,'k'},
-  {"aspect-numerator",optional_argument,NULL,'s'},
-  {"aspect-denominator",optional_argument,NULL,'S'},
-  {"framerate-numerator",optional_argument,NULL,'f'},
-  {"framerate-denominator",optional_argument,NULL,'F'},
+  {"serial",required_argument,NULL,'s'},
   {"help",no_argument,NULL,'h'},
   {NULL,0,NULL,0}
 };
@@ -380,6 +377,7 @@ static void usage(void){
    "                                 use -v and not -V if at all possible,\n"
    "                                 as -v gives higher quality for a given\n"
    "                                 bitrate.\n\n"
+   "  -s --serial <n>                Specify a serial number for the stream.\n"
    " encoder_example accepts only uncompressed YUV4MPEG2 video.\n\n");
   exit(1);
 }
@@ -404,6 +402,8 @@ int main(int _argc,char **_argv){
   int               video_keyframe_rate;
   int               video_ready;
   int               pli;
+  int               fixedserial;
+  unsigned int      serial;
   daala_log_init();
 #if defined(_WIN32)
   _setmode(_fileno(stdin),_O_BINARY);
@@ -419,7 +419,7 @@ int main(int _argc,char **_argv){
   video_keyframe_rate=1; /* TODO - default off for now but make bigger later */
   video_r=-1;
   video_bytesout=0;
-  video_kbps=0;
+  fixedserial=0;
   while((c=getopt_long(_argc,_argv,OPTSTRING,OPTIONS,&loi))!=EOF){
     switch(c){
       case 'o':{
@@ -453,6 +453,14 @@ int main(int _argc,char **_argv){
         }
         video_q=0;
       }break;
+      case 's':{
+        if(sscanf(optarg,"%u",&serial)!=1){
+          serial=0;
+        }
+        else{
+          fixedserial=1;
+        }
+      }break;
       case 'h':
       default:{
         usage();
@@ -465,8 +473,11 @@ int main(int _argc,char **_argv){
     fprintf(stderr,"No video files submitted for compression.\n");
     exit(1);
   }
-  srand(time(NULL));
-  ogg_stream_init(&vo,rand());
+  if (!fixedserial) {
+    srand(time(NULL));
+    serial=rand();
+  }
+  ogg_stream_init(&vo,serial);
   daala_info_init(&di);
   di.pic_width=avin.video_pic_w;
   di.pic_height=avin.video_pic_h;
@@ -496,8 +507,14 @@ int main(int _argc,char **_argv){
     fprintf(stderr,"Internal Ogg library error.\n");
     exit(1);
   }
-  fwrite(og.header,1,og.header_len,outfile);
-  fwrite(og.body,1,og.body_len,outfile);
+  if(fwrite(og.header,1,og.header_len,outfile)<(size_t)og.header_len){
+    fprintf(stderr,"Could not complete write to file.\n");
+    exit(1);
+  }
+  if(fwrite(og.body,1,og.body_len,outfile)<(size_t)og.body_len){
+    fprintf(stderr,"Could not complete write to file.\n");
+    exit(1);
+  }
   /*Create and buffer the remaining Daala headers.*/
   for(;;){
     ret=daala_encode_flush_header(dd,&dc,&op);
@@ -515,8 +532,14 @@ int main(int _argc,char **_argv){
       exit(1);
     }
     else if(!ret)break;
-    fwrite(og.header,1,og.header_len,outfile);
-    fwrite(og.body,1,og.body_len,outfile);
+    if(fwrite(og.header,1,og.header_len,outfile)<(size_t)og.header_len){
+      fprintf(stderr,"Could not write header to file.\n");
+      exit(1);
+    }
+    if(fwrite(og.body,1,og.body_len,outfile)<(size_t)og.body_len){
+      fprintf(stderr,"Could not write body to file.\n");
+      exit(1);
+    }
   }
   /*Setup complete.
      Main compression loop.*/
@@ -525,15 +548,25 @@ int main(int _argc,char **_argv){
   for(;;){
     ogg_page video_page;
     double   video_time;
+    size_t bytes_written;
     video_ready=fetch_and_process_video(&avin,&video_page,
      &vo,dd,video_ready);
     /*TODO: Fetch the next video page.*/
     /*If no more pages are available, we've hit the end of the stream.*/
     if(!video_ready)break;
     video_time=daala_granule_time(dd,ogg_page_granulepos(&video_page));
-    video_bytesout+=
-     fwrite(video_page.header,1,video_page.header_len,outfile);
-    video_bytesout+=fwrite(video_page.body,1,video_page.body_len,outfile);
+    bytes_written=fwrite(video_page.header,1,video_page.header_len,outfile);
+    if(bytes_written<(size_t)video_page.header_len){
+      fprintf(stderr,"Could not write page header to file.\n");
+      exit(1);
+    }
+    video_bytesout+=bytes_written;
+    bytes_written=fwrite(video_page.body,1,video_page.body_len,outfile);
+    if(bytes_written<(size_t)video_page.body_len){
+      fprintf(stderr,"Could not write page body to file.\n");
+      exit(1);
+    }
+    video_bytesout+=bytes_written;
     video_ready=0;
     if(video_time==-1)continue;
     video_kbps=(int)rint(video_bytesout*8*0.001/video_time);

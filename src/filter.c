@@ -106,7 +106,28 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
    of the approximations are actually lower. This is selected when the TYPE3
    defines are set.
 
-  The maximum denominator for all coefficients was allowed to be 64.*/
+  Or we use the form
+    x0 ---------------------------------+------ y0
+                                p0 | u0 | r0 |
+    x1 ---------------------+------+---------+- y1
+                    p1 | u1 | r1 |
+    x2 ---------+------+---------+------------- y2
+        p2 | u2 | r2 |
+    x3 ----+---------+------------------------- y3
+                           .
+                           .
+                           .
+
+   which is a construction using three lifting steps to build a filter with
+    an overall determinant of one.
+   This is a necessary condition for having perfect
+    reconstruction in the reverse directions:
+
+   The scaling steps in the other factorizations give perfect reconstruction
+    in only the forward direction: post(pre(image)) = image, but are
+    not sufficient to make prediction for static scenes instantly convergent.
+   For that we need pre(post(image)) = image as well.
+  */
 
 const od_filter_func OD_PRE_FILTER[OD_NBSIZES] = {
   od_pre_filter4,
@@ -136,15 +157,20 @@ extern int maxv[32];
   initdata.c must be updated.*/
 #define OD_FILTER_PARAMS4_0 (64)
 #define OD_FILTER_PARAMS4_1 (64)
-#define OD_FILTER_PARAMS4_2 (42)
+#define OD_FILTER_PARAMS4_2 (-42)
 
 const int OD_FILTER_PARAMS4[3] = {
   OD_FILTER_PARAMS4_0, OD_FILTER_PARAMS4_1, OD_FILTER_PARAMS4_2
 };
 
 void od_pre_filter4(od_coeff _y[4], const od_coeff _x[4]) {
+#if OD_DISABLE_FILTER
+  int i;
+  for (i = 0; i < 4; i++) {
+    _y[i] = _x[i];
+  }
+#else
   int t[4];
-  int x;
   /*+1/-1 butterflies (required for FIR, PR, LP).*/
   t[3] = _x[0]-_x[3];
   t[2] = _x[1]-_x[2];
@@ -154,46 +180,46 @@ void od_pre_filter4(od_coeff _y[4], const od_coeff _x[4]) {
   /*V filter (arbitrary invertible).*/
   /*Rotation:*/
 #if OD_FILTER_PARAMS4_0 != 64
-  t[3] += (t[2]*OD_FILTER_PARAMS4_0+32)>>6;
+  t[3] += (t[2]*OD_FILTER_PARAMS4_0 + 32) >> 6;
 #else
   t[3] += t[2];
 #endif
 #if OD_FILTER_PARAMS4_1 != 64
-  t[2] -= (t[3]*OD_FILTER_PARAMS4_1+32)>>6;
+  t[2] = ((t[3]*OD_FILTER_PARAMS4_1 + 32) >> 6) - t[2];
 #else
-  t[2] -= t[3];
+  t[2] = t[3] - t[2];
 #endif
-  t[3] += (t[2]*OD_FILTER_PARAMS4_2+32)>>6;
-  x = t[3];
-  t[3] = -t[2];
-  t[2] = x;
+  t[3] += (t[2]*OD_FILTER_PARAMS4_2 + 32) >> 6;
   /*More +1/-1 butterflies (required for FIR, PR, LP).*/
-  t[0] += t[3]>>1;
+  t[0] += t[2]>>1;
   _y[0] = (od_coeff)t[0];
-  t[1] += t[2]>>1;
+  t[1] += t[3]>>1;
   _y[1] = (od_coeff)t[1];
-  _y[2] = (od_coeff)(t[1]-t[2]);
-  _y[3] = (od_coeff)(t[0]-t[3]);
+  _y[2] = (od_coeff)(t[1]-t[3]);
+  _y[3] = (od_coeff)(t[0]-t[2]);
+#endif
 }
 
 void od_post_filter4(od_coeff _x[4], const od_coeff _y[4]) {
-  int t[4];
-  int x;
-  t[3] = _y[0]-_y[3];
-  t[2] = _y[1]-_y[2];
-  t[1] = _y[1]-(t[2]>>1);
-  t[0] = _y[0]-(t[3]>>1);
-  x = t[2];
-  t[2] = -t[3];
-  t[3] = x;
-  t[3] -= (t[2]*OD_FILTER_PARAMS4_2+32)>>6;
-#if OD_FILTER_PARAMS4_1 != 64
-  t[2] += (t[3]*OD_FILTER_PARAMS4_1+32)>>6;
+#if OD_DISABLE_FILTER
+  int i;
+  for (i = 0; i < 4; i++) {
+    _x[i] = _y[i];
+  }
 #else
-  t[2] += t[3];
+  int t[4];
+  t[2] = _y[0]-_y[3];
+  t[3] = _y[1]-_y[2];
+  t[1] = _y[1]-(t[3]>>1);
+  t[0] = _y[0]-(t[2]>>1);
+  t[3] -= (t[2]*OD_FILTER_PARAMS4_2 + 32) >> 6;
+#if OD_FILTER_PARAMS4_1 != 64
+  t[2] = ((t[3]*OD_FILTER_PARAMS4_1 + 32) >> 6) - t[2];
+#else
+  t[2] = t[3] - t[2];
 #endif
 #if OD_FILTER_PARAMS4_0 != 64
-  t[3] -= (t[2]*OD_FILTER_PARAMS4_0+32)>>6;
+  t[3] -= (t[2]*OD_FILTER_PARAMS4_0 + 32) >> 6;
 #else
   t[3] -= t[2];
 #endif
@@ -203,6 +229,7 @@ void od_post_filter4(od_coeff _x[4], const od_coeff _y[4]) {
   _x[1] = (od_coeff)t[1];
   _x[2] = (od_coeff)(t[1]-t[2]);
   _x[3] = (od_coeff)(t[0]-t[3]);
+#endif
 }
 
 /*R=f
@@ -261,6 +288,12 @@ const int OD_FILTER_PARAMS8[10] = {
 };
 
 void od_pre_filter8(od_coeff _y[8], const od_coeff _x[8]) {
+#if OD_DISABLE_FILTER
+  int i;
+  for (i = 0; i < 8; i++) {
+    _y[i] = _x[i];
+  }
+#else
   int t[8];
   /*+1/-1 butterflies (required for FIR, PR, LP).*/
   t[7] = _x[0]-_x[7];
@@ -322,9 +355,16 @@ void od_pre_filter8(od_coeff _y[8], const od_coeff _x[8]) {
   _y[5] = (od_coeff)(t[2]-t[5]);
   _y[6] = (od_coeff)(t[1]-t[6]);
   _y[7] = (od_coeff)(t[0]-t[7]);
+#endif
 }
 
 void od_post_filter8(od_coeff _x[8], const od_coeff _y[8]) {
+#if OD_DISABLE_FILTER
+  int i;
+  for (i = 0; i < 8; i++) {
+    _x[i] = _y[i];
+  }
+#else
   int t[8];
   t[7] = _y[0]-_y[7];
   t[6] = _y[1]-_y[6];
@@ -373,6 +413,7 @@ void od_post_filter8(od_coeff _x[8], const od_coeff _y[8]) {
   _x[5] = (od_coeff)(t[2]-t[5]);
   _x[6] = (od_coeff)(t[1]-t[6]);
   _x[7] = (od_coeff)(t[0]-t[7]);
+#endif
 }
 
 /*R=f Type-3
@@ -471,6 +512,12 @@ const int OD_FILTER_PARAMS16[22]={
 };
 
 void od_pre_filter16(od_coeff _y[16],const od_coeff _x[16]){
+#if OD_DISABLE_FILTER
+  int i;
+  for (i = 0; i < 16; i++) {
+    _y[i] = _x[i];
+  }
+#else
    int t[16];
    /*+1/-1 butterflies (required for FIR, PR, LP).*/
    t[15]=_x[0]-_x[15];
@@ -584,9 +631,16 @@ void od_pre_filter16(od_coeff _y[16],const od_coeff _x[16]){
    _y[13]=(od_coeff)(t[2]-t[13]);
    _y[14]=(od_coeff)(t[1]-t[14]);
    _y[15]=(od_coeff)(t[0]-t[15]);
+#endif
 }
 
 void od_post_filter16(od_coeff _x[16],const od_coeff _y[16]){
+#if OD_DISABLE_FILTER
+  int i;
+  for (i = 0; i < 16; i++) {
+    _x[i] = _y[i];
+  }
+#else
    int t[16];
    t[15]=_y[0]-_y[15];
    t[14]=_y[1]-_y[14];
@@ -683,6 +737,7 @@ void od_post_filter16(od_coeff _x[16],const od_coeff _y[16]){
    _x[13]=(od_coeff)(t[2]-t[13]);
    _x[14]=(od_coeff)(t[1]-t[14]);
    _x[15]=(od_coeff)(t[0]-t[15]);
+#endif
 }
 
 #define ZERO_FILTERS (0)
