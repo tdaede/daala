@@ -66,6 +66,7 @@ struct av_input{
   daala_plane_info  video_plane_info[OD_NPLANES_MAX];
   od_img            video_img;
   int               video_cur_img;
+  int               video_depth;
 };
 
 
@@ -181,6 +182,7 @@ static void id_y4m_file(av_input *_avin,const char *_file,FILE *_test){
   /*TODO: Specify chroma offsets.*/
   _avin->video_plane_info[0].xdec=0;
   _avin->video_plane_info[0].ydec=0;
+  _avin->video_depth=8;
   if(strcmp(_avin->video_chroma_type,"444")==0){
     _avin->video_nplanes=3;
     _avin->video_plane_info[1].xdec=0;
@@ -233,6 +235,22 @@ static void id_y4m_file(av_input *_avin,const char *_file,FILE *_test){
     _avin->video_plane_info[2].xdec=1;
     _avin->video_plane_info[2].ydec=1;
   }
+  else if(strcmp(_avin->video_chroma_type,"420p10")==0){
+    _avin->video_nplanes=3;
+    _avin->video_depth=10;
+    _avin->video_plane_info[1].xdec=1;
+    _avin->video_plane_info[1].ydec=1;
+    _avin->video_plane_info[2].xdec=1;
+    _avin->video_plane_info[2].ydec=1;
+  }
+  else if(strcmp(_avin->video_chroma_type,"420p16")==0){
+    _avin->video_nplanes=3;
+    _avin->video_depth=16;
+    _avin->video_plane_info[1].xdec=1;
+    _avin->video_plane_info[1].ydec=1;
+    _avin->video_plane_info[2].xdec=1;
+    _avin->video_plane_info[2].ydec=1;
+  }
   else if(strcmp(_avin->video_chroma_type,"mono")==0){
     _avin->video_nplanes=1;
   }
@@ -240,6 +258,10 @@ static void id_y4m_file(av_input *_avin,const char *_file,FILE *_test){
     fprintf(stderr,"Unknown chroma sampling type: '%s'.\n",
      _avin->video_chroma_type);
     exit(1);
+  }
+  if(_avin->video_depth > 8){
+    fprintf(stderr,"Warning: Bit depths above 8 will be truncated.\n");
+    fprintf(stderr,"Input data has a bit depth of %d.\n",_avin->video_depth);
   }
   img=&_avin->video_img;
   img->nplanes=_avin->video_nplanes;
@@ -250,8 +272,10 @@ static void id_y4m_file(av_input *_avin,const char *_file,FILE *_test){
     iplane=img->planes+pli;
     iplane->xdec=_avin->video_plane_info[pli].xdec;
     iplane->ydec=_avin->video_plane_info[pli].ydec;
-    iplane->xstride=1;
-    iplane->ystride=(_avin->video_pic_w+(1<<iplane->xdec)-1)>>iplane->xdec;
+    iplane->xstride=(_avin->video_depth>8)?2:1;
+    iplane->ystride=((_avin->video_pic_w+(1<<iplane->xdec)-1)>>iplane->xdec)*
+      iplane->xstride;
+    iplane->depth=_avin->video_depth;
     iplane->data=_ogg_malloc(iplane->ystride*
      ((_avin->video_pic_h+(1<<iplane->ydec)-1)>>iplane->ydec));
   }
@@ -327,7 +351,8 @@ int fetch_and_process_video(av_input *_avin,ogg_page *_page,
         size_t        plane_sz;
         iplane=img->planes+pli;
         plane_sz=((_avin->video_pic_w+(1<<iplane->xdec)-1)>>iplane->xdec)*
-         ((_avin->video_pic_h+(1<<iplane->ydec)-1)>>iplane->ydec);
+         ((_avin->video_pic_h+(1<<iplane->ydec)-1)>>iplane->ydec)*
+         iplane->xstride;
         ret=fread(iplane->data/*+(_avin->video_pic_y>>iplane->ydec)*iplane->ystride+
          (_avin->video_pic_x>>iplane->xdec)*/,1,plane_sz,_avin->video_infile);
         if(ret!=plane_sz){
@@ -481,6 +506,7 @@ int main(int _argc,char **_argv){
   daala_info_init(&di);
   di.pic_width=avin.video_pic_w;
   di.pic_height=avin.video_pic_h;
+  di.depth=avin.video_depth;
   di.timebase_numerator=avin.video_fps_n;
   di.timebase_denominator=avin.video_fps_d;
   di.frame_duration=1;

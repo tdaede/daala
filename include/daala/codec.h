@@ -151,11 +151,12 @@ struct od_img_plane {
       zero ). */
   unsigned char xdec;
   unsigned char ydec;
-  /** Distance in memory between two pixels horizontally next to each other in
-      (is always 1 in encoder). */
+  /** Distance in memory between two pixels horizontally next to each other. */
   int xstride;
   /** Distance in memory between two pixels vertically next to each other. */
   int ystride;
+  /** Bits per pixel */
+  int depth;
 };
 
 /** Representation of an image or video frame. */
@@ -184,6 +185,7 @@ struct daala_info {
   /** pic_width,_height form a region of interest to encode */
   ogg_int32_t pic_width;
   ogg_int32_t pic_height;
+  ogg_uint32_t depth;
   ogg_uint32_t pixel_aspect_numerator;
   ogg_uint32_t pixel_aspect_denominator;
   ogg_uint32_t timebase_numerator;
