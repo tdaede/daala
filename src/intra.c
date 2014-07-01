@@ -205,8 +205,9 @@ void od_intra_pred16x16_dist(ogg_uint32_t *dist, const od_coeff *c,
    adding to 1 and having no values less than 1/256.
   We look up the weights using the INTRA modes of the corresponding luma
    blocks.*/
+   
 const int OD_INTRA_CHROMA_WEIGHTS_Q8[OD_INTRA_NMODES][3] = {
-  { 1,  89, 166},
+  { 85, 85,  86},
   { 1,  45, 210},
   { 1,  19, 236},
   { 1,   1, 254},
