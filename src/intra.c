@@ -260,7 +260,7 @@ void od_chroma_pred(od_coeff *p, const od_coeff *c, const od_coeff *l,
     int boffs;
     int ci;
     int w_q8;
-    w_q8 = weights_q8[bi];
+    w_q8 = 256/3;
     nx = bx + BLOCK_DX[bi];
     ny = by + BLOCK_DY[bi];
     nsize = OD_BLOCK_SIZE4x4(bsize, bstride, nx << xdec, ny << ydec);
