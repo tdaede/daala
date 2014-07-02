@@ -1178,6 +1178,63 @@ int od_state_dump_img(od_state *state, od_img *img, const char *tag) {
   fclose(fp);
   return 0;
 }
+
+/*Dump a PNG of a coefficient buffer.*/
+int od_state_dump_coeff(od_state *state, od_coeff *p, const char *tag, int width, int height) {
+  png_structp png;
+  png_infop info;
+  png_bytepp row_pointers;
+  FILE *fp;
+  char fname[128];
+  int y;
+  char *suf;
+  suf = getenv("OD_DUMP_IMAGES_SUFFIX");
+  if (!suf) {
+    suf="";
+  }
+  sprintf(fname, "%08i%s%s.png",
+   (int)daala_granule_basetime(state, state->cur_time), tag, suf);
+  fp = fopen(fname, "wb");
+  png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  if (png == NULL) {
+    fclose(fp);
+    return OD_EFAULT;
+  }
+  info = png_create_info_struct(png);
+  if (info == NULL) {
+    png_destroy_write_struct(&png, NULL);
+    fclose(fp);
+    return OD_EFAULT;
+  }
+  if (setjmp(png_jmpbuf(png))) {
+    png_destroy_write_struct(&png, &info);
+    fclose(fp);
+    return OD_EFAULT;
+  }
+  row_pointers = _ogg_malloc(height*sizeof(png_bytep));
+  for (y=0;y<height;y++) {
+    row_pointers[y] = (png_bytep)(p + y*width);
+  }
+
+  png_init_io(png, fp);
+  png_set_compression_level(png, Z_BEST_COMPRESSION);
+  png_set_IHDR(png, info, width, height, 16, PNG_COLOR_TYPE_GRAY,
+   PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+  /*TODO: Define real colorspace.*/
+  /*png_set_gAMA(png, info, 2.2);
+  png_set_cHRM_fixed(png, info, 31006, 31616, 67000, 32000,
+   21000, 71000, 14000, 8000);*/
+  png_set_pHYs(png, info, state->info.pixel_aspect_numerator,
+   state->info.pixel_aspect_denominator, 0);
+  png_set_rows(png, info, row_pointers);
+  png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
+  png_write_end(png, info);
+  png_destroy_write_struct(&png, &info);
+  _ogg_free(row_pointers);
+  fclose(fp);
+  return 0;
+}
+
 #endif
 
 void od_state_mc_predict(od_state *state, int ref) {

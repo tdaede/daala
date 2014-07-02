@@ -202,6 +202,7 @@ void od_state_upsample8(od_state *_state, od_img *_dst, const od_img *_src);
 int od_state_dump_yuv(od_state *_state, od_img *_img, const char *_tag);
 # if defined(OD_DUMP_IMAGES)
 int od_state_dump_img(od_state *_state, od_img *_img, const char *_tag);
+int od_state_dump_coeff(od_state *state, od_coeff *p, const char *tag, int width, int height);
 void od_img_draw_point(od_img *_img, int _x, int _y,
  const unsigned char _ycbcr[3]);
 void od_img_draw_line(od_img *_img, int _x0, int _y0, int _x1, int _y1,
