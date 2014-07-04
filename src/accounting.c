@@ -98,6 +98,10 @@ void od_acct_reset(od_acct *acct) {
   for (i = 0; i < OD_ACCT_SIZE; i++) {
     acct->frac_bits[i] = 0;
   }
+  for (i = 0; i < OD_ACCT_BLOCK_BUFSIZE; i++) {
+    acct->block_bits[0][i] = 0;
+  }
+  acct->block_bits_pos = 0;
 }
 
 static int od_acct_index(unsigned int state[OD_ACCT_NCATS]) {
@@ -129,6 +133,20 @@ void od_acct_update(od_acct *acct, ogg_uint32_t frac_bits,
   od_acct_update_frac_bits(acct, frac_bits);
   od_acct_set_category(acct, cat, value);
 }
+
+#ifdef OD_ACCT_BLOCK
+
+void od_acct_start_block(od_acct *acct, ogg_uint32_t frac_bits) {
+  acct->block_bits_pos = frac_bits;
+}
+
+void od_acct_finish_block(od_acct *acct, ogg_uint32_t frac_bits,
+ int pli, int bx, int by) {
+  acct->block_bits[pli][by*OD_ACCT_BLOCK_STRIDE + bx] =
+    frac_bits - acct->block_bits_pos;
+}
+
+#endif
 
 static int od_acct_next_state(unsigned int state[OD_ACCT_NCATS],
  od_acct_category skip) {
@@ -192,6 +210,9 @@ void od_acct_write(od_acct *acct, ogg_int64_t cur_time) {
   od_acct_category cat;
   unsigned int value;
   long fsize;
+  int bx;
+  int by;
+  int pli;
   OD_ASSERT(acct->fp);
   fsize = ftell(acct->fp);
   if (fsize == 0) {
@@ -214,5 +235,18 @@ void od_acct_write(od_acct *acct, ogg_int64_t cur_time) {
     }
     fprintf(acct->fp, "\n  }");
   }
+  fprintf(acct->fp, ",\n  \"blocks\": [\n");
+  for (pli = 0; pli < 3; pli++) {
+    fprintf(acct->fp, "[\n");
+    for (by = 0; by < 256; by++) {
+      fprintf(acct->fp,"    ");
+      for (bx = 0; bx < 512; bx++) {
+        fprintf(acct->fp, "%d,",acct->block_bits[pli][by*512+bx]);
+      }
+      fprintf(acct->fp,"\n");
+    }
+    fprintf(acct->fp, "0]%s\n", pli < 2 ? "," : "");
+  }
+  fprintf(acct->fp,"]\n");
   fprintf(acct->fp, "\n}]");
 }

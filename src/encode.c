@@ -495,6 +495,9 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
 #ifndef USE_BAND_PARTITIONS
   zig = OD_DCT_ZIGS[ln];
 #endif
+#ifdef OD_ACCT_BLOCK
+  od_acct_start_block(&enc->acct, od_ec_enc_tell_frac(&enc->ec));
+#endif
   xdec = enc->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
   frame_width = enc->state.frame_width;
   w = frame_width >> xdec;
@@ -599,6 +602,10 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
   }
 # endif
   (*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w, preds, n);
+#endif
+#ifdef OD_ACCT_BLOCK
+  od_acct_finish_block(&enc->acct, od_ec_enc_tell_frac(&enc->ec),
+    pli, bx, by);
 #endif
 }
 

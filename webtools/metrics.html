@@ -6,6 +6,8 @@
       h1 { text-align: center; }
       #plot { margin: 0 auto; width: 900px; height: 500px; }
       #select { text-align: center; }
+      #bits { width: 900px; height: 900px; }
+      body { text-align: center; }
     </style>
     <script src="js/jquery-1.10.2.min.js"></script>
     <script src="js/jquery.flot.js"></script>
@@ -65,6 +67,28 @@ function plot(data) {
   plot_choices();
 }
 
+function draw_canvas() {
+  var data = loadedData;
+  var ctx = $('#bits')[0].getContext('2d');
+  var pli = $('#pli').val();
+  for (var y = 0; y < 256; y++) {
+    for (var x = 0; x < 512; x++) {
+      var bits = data[0].blocks[pli][y*512+x];
+      var r = bits;
+      var g = bits;
+      var b = bits;
+      ctx.fillStyle = 'rgb('+r+','+g+','+b+')';
+      if (pli == 0) {
+        ctx.fillRect(x,y,1,1);
+      } else {
+        ctx.fillRect(x*2,y*2,2,2);
+      }
+    }
+  }
+}
+
+var loadedData;
+
 $(function() {
   $("#filebox").on("change", function() {
     console.log(this.files);
@@ -73,7 +97,9 @@ $(function() {
     var reader = new FileReader();
     reader.onload = function (e) {
       var data = JSON.parse(e.target.result);
+      loadedData = data;
       plot(data);
+      draw_canvas(data);
     };
     console.log(reader);
     reader.readAsText(file);
@@ -91,6 +117,16 @@ $(function() {
     </div>
     <div id="content">
       <div id="plot"></div>
+    </div>
+    <div>
+      <select onChange="draw_canvas()" id="pli">
+        <option value="0">Y</option>
+        <option value="1">U</option>
+        <option value="2">V</option>
+      </select>
+    </div>
+    <div>
+      <canvas id="bits" width="512" height="512"></canvas>
     </div>
   </body>
 </html>

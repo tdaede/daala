@@ -29,6 +29,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # include <stdio.h>
 # include "internal.h"
 
+#define OD_ACCT_BLOCK (1)
+
 enum od_acct_category {
   OD_ACCT_CAT_TECHNIQUE = 0,
   OD_ACCT_CAT_PLANE = 1,
@@ -80,7 +82,16 @@ struct od_acct {
   ogg_uint32_t last_frac_bits;
   unsigned int state[OD_ACCT_NCATS];
   ogg_uint32_t frac_bits[OD_ACCT_SIZE];
+#ifdef OD_ACCT_BLOCK
+# define OD_ACCT_BLOCK_BUFSIZE 512*512
+  ogg_uint32_t block_bits[3][OD_ACCT_BLOCK_BUFSIZE];
+  ogg_uint32_t block_bits_pos;
+#endif
 };
+
+#ifdef OD_ACCT_BLOCK
+# define OD_ACCT_BLOCK_STRIDE 512
+#endif
 
 void od_acct_init(od_acct *acct);
 void od_acct_clear(od_acct *acct);
@@ -90,6 +101,11 @@ void od_acct_set_category(od_acct *acct, od_acct_category cat,
  unsigned int value);
 void od_acct_update(od_acct *acct, ogg_uint32_t frac_bits,
  od_acct_category cat, unsigned int value);
+#ifdef OD_ACCT_BLOCK
+void od_acct_start_block(od_acct *acct, ogg_uint32_t frac_bits);
+void od_acct_finish_block(od_acct *acct, ogg_uint32_t frac_bits,
+ int pli, int bx, int by);
+#endif
 void od_acct_print(od_acct *acct, FILE *_fp);
 void od_acct_write(od_acct *acct, ogg_int64_t cur_time);
 
