@@ -28,8 +28,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 
 # include <stdio.h>
 # include "internal.h"
+# include "state.h"
 
-#define OD_ACCT_BLOCK (1)
+# define OD_ACCT_BLOCK (1)
 
 enum od_acct_category {
   OD_ACCT_CAT_TECHNIQUE = 0,
@@ -79,6 +80,7 @@ typedef struct od_acct od_acct;
 
 struct od_acct {
   FILE *fp;
+  od_state *s;
   ogg_uint32_t last_frac_bits;
   unsigned int state[OD_ACCT_NCATS];
   ogg_uint32_t frac_bits[OD_ACCT_SIZE];
@@ -93,7 +95,7 @@ struct od_acct {
 # define OD_ACCT_BLOCK_STRIDE 512
 #endif
 
-void od_acct_init(od_acct *acct);
+void od_acct_init(od_acct *acct, od_state *s);
 void od_acct_clear(od_acct *acct);
 void od_acct_reset(od_acct *acct);
 void od_acct_update_frac_bits(od_acct *acct, ogg_uint32_t frac_bits);

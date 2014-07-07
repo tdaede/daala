@@ -85,7 +85,7 @@ static int od_enc_init(od_enc_ctx *enc, const daala_info *info) {
   for (i = 0; i < OD_NPLANES_MAX; i++) enc->scale[i] = 10;
   enc->mvest = od_mv_est_alloc(enc);
 #if defined(OD_ACCOUNTING)
-  od_acct_init(&enc->acct);
+  od_acct_init(&enc->acct, &enc->state);
 #endif
   return 0;
 }

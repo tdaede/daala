@@ -64,11 +64,12 @@ static const unsigned int OD_ACCT_INDICES[OD_ACCT_NCATS] = {
   OD_ACCT_NPLANES
 };
 
-void od_acct_init(od_acct *acct) {
+void od_acct_init(od_acct *acct, od_state *s) {
   char  fname[1024];
   char *pre;
   char *suf;
   int   rv;
+  acct->s = s;
   pre = "acct-";
   suf = getenv("OD_ACCT_SUFFIX");
   if (!suf) {
@@ -213,6 +214,10 @@ void od_acct_write(od_acct *acct, ogg_int64_t cur_time) {
   int bx;
   int by;
   int pli;
+  int width;
+  int height;
+  width = acct->s->info.pic_width;
+  height = acct->s->info.pic_height;
   OD_ASSERT(acct->fp);
   fsize = ftell(acct->fp);
   if (fsize == 0) {
@@ -224,6 +229,8 @@ void od_acct_write(od_acct *acct, ogg_int64_t cur_time) {
   }
   fprintf(acct->fp, "{\n");
   fprintf(acct->fp, "  \"frame\": %" OD_I64FMT ",\n", (long long)cur_time);
+  fprintf(acct->fp, "  \"width\": %d,\n", width);
+  fprintf(acct->fp, "  \"height\": %d,\n", height);
   fprintf(acct->fp, "  \"total\": %u,\n", acct->last_frac_bits-8);
   for (cat = 0; cat < OD_ACCT_NCATS; cat++) {
     fprintf(acct->fp, "%s  \"%s\": {\n", cat > 0 ? ",\n" : "",

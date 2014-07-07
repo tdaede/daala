@@ -6,7 +6,7 @@
       h1 { text-align: center; }
       #plot { margin: 0 auto; width: 900px; height: 500px; }
       #select { text-align: center; }
-      #bits { width: 900px; height: 900px; }
+      #bits { width: 900px; height: auto; }
       body { text-align: center; }
     </style>
     <script src="js/jquery-1.10.2.min.js"></script>
@@ -69,7 +69,10 @@ function plot(data) {
 
 function draw_canvas() {
   var data = loadedData;
-  var ctx = $('#bits')[0].getContext('2d');
+  var canvas = $('#bits')[0];
+  canvas.width = data[0].width / 4;
+  canvas.height = data[0].height / 4;
+  var ctx = canvas.getContext('2d');
   var pli = $('#pli').val();
   for (var y = 0; y < 256; y++) {
     for (var x = 0; x < 512; x++) {
