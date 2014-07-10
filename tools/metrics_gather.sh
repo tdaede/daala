@@ -1,8 +1,5 @@
 #!/bin/bash
 
-#!/bin/bash
-set -e
-
 if [ -z "$ENCODER_EXAMPLE" ]; then
   export ENCODER_EXAMPLE=$DAALA_ROOT/examples/encoder_example
 fi
