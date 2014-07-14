@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+
+from __future__ import print_function
 
 import argparse
 import os
@@ -7,6 +9,7 @@ import threading
 import subprocess
 import time
 import multiprocessing
+import boto.ec2.autoscale
 from pprint import pprint
 
 if 'DAALA_ROOT' not in os.environ:
@@ -21,7 +24,7 @@ class Machine:
     def setup(self):
         print('Connecting to',self.host)
         subprocess.call(['./transfer_git.sh',self.host])
-    def exec(self,command):
+    def execute(self,command):
         ssh_command = ['ssh','-i',daala_root+'/tools/daala.pem',command]
     def upload(self,filename):
         basename = os.path.basename(filename)
@@ -86,15 +89,35 @@ taken_slots = []
 work_items = []
 work_done = []
 
-machines = [Machine('54.191.83.186')]
+machines = []
 
 parser = argparse.ArgumentParser(description='Collect RD curve data.')
 parser.add_argument('file')
 parser.add_argument('--amazon',action='store_true')
+parser.add_argument('--local')
 args = parser.parse_args()
 
 if args.amazon:
+    print('Launching instances...')
+    autoscale = boto.ec2.autoscale.AutoScaleConnection();
+    ec2 = boto.ec2.connect_to_region('us-west-2');
+    autoscale.set_desired_capacity('Daala',2)
     print('Connecting to Amazon instances..')
+    group = None
+    while 1:
+        group = autoscale.get_all_groups(names=['Daala'])[0]
+        num_instances = len(group.instances)
+        print('Number of instances online:',len(group.instances))
+        if num_instances >= 2:
+            break
+        time.sleep(1)
+    instance_ids = [i.instance_id for i in group.instances]
+    print(instance_ids)
+    print('Waiting one minute for boot...')
+    time.sleep(60)
+    instances = ec2.get_only_instances(instance_ids)
+    for instance in instances:
+        machines.append(Machine(instance.ip_address))
     for machine in machines:
         machine.setup()
         machine.upload(args.file)
@@ -106,6 +129,10 @@ for quality in quality_daala:
     work.quality = quality
     work.filename = args.file
     work_items.append(work)
+    
+if len(free_slots) < 1:
+    print('No slots available for work!')
+    sys.exit(1)
 
 while(1):
     for slot in taken_slots:
