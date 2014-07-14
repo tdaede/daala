@@ -113,9 +113,13 @@ if args.amazon:
         time.sleep(1)
     instance_ids = [i.instance_id for i in group.instances]
     print(instance_ids)
-    print('Waiting one minute for boot...')
-    time.sleep(60)
     instances = ec2.get_only_instances(instance_ids)
+    for instance in instances:
+        print('Waiting for instance',instance.id,'to boot...')
+        while 1:
+            instance.update()
+            if instance.state == 'running':
+                break
     for instance in instances:
         machines.append(Machine(instance.ip_address))
     for machine in machines:

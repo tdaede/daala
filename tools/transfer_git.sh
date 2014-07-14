@@ -1,9 +1,18 @@
 #!/bin/bash
 
+set -e
+
 if [ -z $DAALA_ROOT ]; then
   echo "Please set DAALA_ROOT to the location of your libvpx git clone"
   exit 1
 fi
+
+echo Testing server...
+ssh -i $DAALA_ROOT/tools/daala.pem ec2-user@$1 "echo Available"
+
+#echo Importing ssh keys...
+
+#ssh-keyscan -H $1 >> ~/.ssh/known_hosts
 
 branch=`git rev-parse --abbrev-ref HEAD`
 
