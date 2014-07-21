@@ -272,6 +272,83 @@ struct od_mb_enc_ctx {
 };
 typedef struct od_mb_enc_ctx od_mb_enc_ctx;
 
+int od_paint_score(od_coeff* a, od_coeff* b) {
+  int i;
+  int sum;
+  sum = 0;
+  for (i = 0; i < 8*8; i++) {
+    sum += abs(a[i] - b[i]);
+  }
+  return sum;
+}
+
+
+static void od_paint_block_horiz(od_coeff* in, od_coeff* out, float angle) {
+  int x, y, i;
+  int skew;
+  for (y = 0; y < 8; y++) {
+    for (x = 0; x < 8; x++) {
+      skew = floor(x * angle);
+      if ((y - skew) < 0) skew = y;
+      out[y*8+x] = in[(y-skew)*8];
+    }
+  }
+}
+
+
+static void od_paint_block_vert(od_coeff* in, od_coeff* out, float angle) {
+  int x, y, i;
+  int skew;
+  for (y = 0; y < 8; y++) {
+    for (x = 0; x < 8; x++) {
+      skew = floor(y * angle);
+      if ((x - skew) < 0) skew = x;
+      out[y*8+x] = in[x-skew];
+    }
+  }
+}
+
+static void od_paint_block(od_coeff* in, od_coeff* out, float angle) {
+  if (angle < 0) {
+    od_paint_block_horiz(in, out, -1*angle);
+  } else {
+    od_paint_block_vert(in,out, angle);
+  }
+}
+
+static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred, int ln, int pli, int bx, int by, int has_ur) {
+  int frame_width;
+  int w;
+  int xdec;
+  xdec = enc->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+  frame_width = enc->state.frame_width;
+  w = frame_width >> xdec;
+  od_coeff in[8*8];
+  od_coeff guess[8*8];
+  int i;
+  int x;
+  int y;
+  float angle = 0;
+  float best_angle = 0;
+  int error;
+  int best_error = 100000;
+  int skew = 0;
+  for (y = 0; y < 8; y++) {
+    for (x = 0; x < 8; x++) {
+      in[y*8+x] = ctx->c[((by<<2)+y)*w+(bx<<2)+x];
+    }
+  }
+  for (angle = -1; angle < 1; angle += 0.01) {
+    od_paint_block(in, guess, angle);
+    error = od_paint_score(in, guess);
+    if (error < best_error) {
+      best_error = error;
+      best_angle = angle;
+    }
+  }
+  od_paint_block(in, pred, best_angle);
+}
+
 static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred,
   int ln, int pli, int bx, int by, int has_ur) {
   int n;
@@ -347,6 +424,7 @@ static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_co
 #if !OD_DISABLE_INTRA
         od_ec_encode_cdf_unscaled(&enc->ec, mode, mode_cdf, OD_INTRA_NMODES);
 #endif
+        od_encode_pred_paint(enc, ctx, pred, ln, pli, bx, by,has_ur);
         OD_ACCT_UPDATE(&enc->acct, od_ec_enc_tell_frac(&enc->ec),
          OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
         mode_bits -= M_LOG2E*log(
@@ -477,6 +555,8 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
   od_coeff predt[16*16];
   od_coeff cblock[16*16];
   od_coeff scalar_out[16*16];
+  int y;
+  int x;
   int run_pvq;
   int scale;
   int dc_scale;
@@ -599,7 +679,14 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
     }
   }
 # endif
-  (*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w, preds, n);
+  if (pli == 0) {
+    for ( y = 0; y < 8; y++) {
+      for (x = 0; x < 8; x++) {
+        *(c + ((by << 2)+y)*w + (bx << 2) + x) = preds[y*8+x];
+      }
+    }
+  }
+  /*(*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w, preds, n);*/
 #endif
 }
 

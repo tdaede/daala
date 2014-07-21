@@ -48,8 +48,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 /*The largest block size.*/
 # define OD_BSIZE_MAX  (1<<OD_LOG_BSIZE0+OD_NBSIZES-1)
 
-# define OD_LIMIT_LOG_BSIZE_MIN (2)
-# define OD_LIMIT_LOG_BSIZE_MAX (4)
+# define OD_LIMIT_LOG_BSIZE_MIN (3)
+# define OD_LIMIT_LOG_BSIZE_MAX (3)
 # if OD_LIMIT_LOG_BSIZE_MIN > 4 || OD_LIMIT_LOG_BSIZE_MAX > 4
 #  error "block sizes above 16x16 not supported"
 # endif
@@ -57,9 +57,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # define OD_DISABLE_INTRA (1)
 # define OD_DISABLE_HAAR_DC (0)
 # define OD_DISABLE_PVQ (0)
-# define OD_DISABLE_CFL (0)
+# define OD_DISABLE_CFL (1)
 # define OD_DISABLE_MASKING (0)
 # define OD_DISABLE_QM (0)
+
+# define OD_OUTPUT_PRED (0)
 
 # define OD_COEFF_SHIFT (4)
 
