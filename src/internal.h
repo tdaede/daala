@@ -53,7 +53,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # if OD_LIMIT_LOG_BSIZE_MIN > 4 || OD_LIMIT_LOG_BSIZE_MAX > 4
 #  error "block sizes above 16x16 not supported"
 # endif
-# define OD_DISABLE_FILTER (0)
+# define OD_DISABLE_FILTER (1)
 # define OD_DISABLE_INTRA (1)
 # define OD_DISABLE_HAAR_DC (0)
 # define OD_DISABLE_PVQ (0)

@@ -272,49 +272,185 @@ struct od_mb_enc_ctx {
 };
 typedef struct od_mb_enc_ctx od_mb_enc_ctx;
 
-int od_paint_score(od_coeff* a, od_coeff* b) {
-  int i;
+int od_paint_score(od_coeff* a, int a_stride, od_coeff* b, int n) {
+  int x;
+  int y;
+  int e;
   int sum;
   sum = 0;
-  for (i = 0; i < 8*8; i++) {
-    sum += abs(a[i] - b[i]);
+  for (y = 0; y < n; y++) {
+    for (x = 0; x < n; x++) {
+      e = abs(a[y*a_stride+x] - b[y*n+x]);
+      sum += e*e;
+    }
   }
   return sum;
 }
 
-
-static void od_paint_block_horiz(od_coeff* in, od_coeff* out, float angle) {
-  int x, y, i;
-  int skew;
-  for (y = 0; y < 8; y++) {
-    for (x = 0; x < 8; x++) {
-      skew = floor(x * angle);
-      if ((y - skew) < 0) skew = y;
-      out[y*8+x] = in[(y-skew)*8];
-    }
-  }
-}
-
-
-static void od_paint_block_vert(od_coeff* in, od_coeff* out, float angle) {
-  int x, y, i;
-  int skew;
-  for (y = 0; y < 8; y++) {
-    for (x = 0; x < 8; x++) {
-      skew = floor(y * angle);
-      if ((x - skew) < 0) skew = x;
-      out[y*8+x] = in[x-skew];
-    }
-  }
-}
-
-static void od_paint_block(od_coeff* in, od_coeff* out, float angle) {
-  if (angle < 0) {
-    od_paint_block_horiz(in, out, -1*angle);
+static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, int* y_pred, float *weight) {
+  float angle = (mode/32.0)*M_PI;
+  float cosa = cosf(angle);
+  float sina = sinf(angle);
+  float y_col_left;
+  float y_col_right;
+  float x_col_top;
+  float x_col_bottom;
+  float w1, w2;
+  weight[2] = 0;
+  weight[3] = 0;
+  x_pred[2] = 0;
+  y_pred[2] = 0;
+  x_pred[3] = 0;
+  y_pred[3] = 0;
+  if (mode == 0) {
+    /* pure horizontal mode */
+    x_pred[0] = 0;
+    y_pred[0] = y;
+    weight[0] = 1.0-((float)x/n);
+    x_pred[1] = 0;
+    y_pred[1] = 0;
+    weight[1] = 0;
+    x_pred[2] = n;
+    y_pred[2] = y;
+    weight[2] = ((float)x/n);
+    x_pred[3] = 0;
+    y_pred[3] = 0;
+    weight[3] = 0;
+  } else if (mode == 16) {
+    /* pure vertical mode */
+    x_pred[0] = x;
+    y_pred[0] = 0;
+    weight[0] = 1.0-((float)y/n);
+    x_pred[1] = 0;
+    y_pred[1] = 0;
+    weight[1] = 0;
+    x_pred[2] = x;
+    y_pred[2] = n;
+    weight[2] = ((float)y/n);
+    x_pred[3] = 0;
+    y_pred[3] = 0;
+    weight[3] = 0;
   } else {
-    od_paint_block_vert(in,out, angle);
+    /* collision against top edge */
+    x_col_top = x - y*(sina/cosa);
+    /* collision against left edge */
+    y_col_left = y - x*(cosa/sina);
+    /* collision against bottom edge */
+    x_col_bottom = x + (n-y)*(sina/cosa);
+    /* collision against right edge */
+    y_col_right = y + (n-x)*(cosa/sina);
+    if (mode < 16) {
+      /* must have collided with either top or left */
+      if (x_col_top >= 0) {
+        /* collided with top */
+        x_pred[0] = floor(x_col_top);
+        y_pred[0] = 0;
+        weight[0] = 1.0-(x_col_top-x_pred[0]);
+        x_pred[1] = floor(x_col_top+1);
+        y_pred[1] = 0;
+        weight[1] = 1.0-weight[0];
+      } else {
+        /* collided with left */
+        x_pred[0] = 0;
+        y_pred[0] = floor(y_col_left);
+        weight[0] = 1.0-(y_col_left-y_pred[0]);
+        y_pred[1] = 0;
+        y_pred[1] = floor(y_col_left+1);
+        weight[1] = 1.0-weight[0];
+      }
+      /* AND */
+      /* must have collided with either bottom or right */
+      if (x_col_bottom <= n) {
+        /* collided with bottom */
+        x_pred[2] = floor(x_col_bottom);
+        y_pred[2] = n;
+        weight[2] = 1.0-(x_col_bottom-x_pred[2]);
+        x_pred[3] = floor(x_col_bottom+1);
+        y_pred[3] = n;
+        weight[3] = 1.0-weight[2];
+      } else {
+        /*collided with right */
+        x_pred[2] = n;
+        y_pred[2] = floor(y_col_right);
+        weight[2] = 1.0-(y_col_right-y_pred[2]);
+        y_pred[3] = n;
+        y_pred[3] = floor(y_col_right+1);
+        weight[3] = 1.0-weight[2];
+      }
+    } else {
+      /* must have collided with either top or right */
+      if (x_col_top <= n) {
+        /* collided with top */
+        x_pred[0] = floor(x_col_top);
+        y_pred[0] = 0;
+        weight[0] = 1.0-(x_col_top-x_pred[0]);
+        x_pred[1] = floor(x_col_top+1);
+        y_pred[1] = 0;
+        weight[1] = 1.0-weight[0];
+      } else {
+        /* collided with right */
+        x_pred[0] = 0;
+        y_pred[0] = floor(y_col_right);
+        weight[0] = 1.0-(y_col_right-y_pred[0]);
+        y_pred[1] = 0;
+        y_pred[1] = floor(y_col_right+1);
+        weight[1] = 1.0-weight[0];
+      }
+      /* AND */
+      /* must have collided with either bottom or left */
+      if (x_col_bottom >= 0) {
+        /* collided with bottom */
+        x_pred[2] = floor(x_col_bottom);
+        y_pred[2] = n;
+        weight[2] = 1.0-(x_col_bottom-x_pred[2]);
+        x_pred[3] = floor(x_col_bottom+1);
+        y_pred[3] = n;
+        weight[3] = 1.0-weight[2];
+      } else {
+        /*collided with right */
+        x_pred[2] = n;
+        y_pred[2] = floor(y_col_left);
+        weight[2] = 1.0-(y_col_left-y_pred[2]);
+        y_pred[3] = n;
+        y_pred[3] = floor(y_col_left+1);
+        weight[3] = 1.0-weight[2];
+      }
+    }
+    if ((mode >= 8) && (mode <= 24)) {
+      /* vertically biased */
+      w1 = 1.0-((float)y/n);
+      w2 = ((float)y/n);
+    } else {
+      /* horizontally biased */
+      w1 = 1.0-((float)x/n);
+      w2 = ((float)x/n);
+    }
+    weight[0] *= w1;
+    weight[1] *= w1;
+    weight[2] *= w2;
+    weight[3] *= w2;
   }
 }
+
+static void od_paint_block_new(od_coeff* in, int in_stride, od_coeff* out, int mode, int n) {
+  int x, y;
+  int x_pred[4];
+  int y_pred[4];
+  float weight[4];
+  float temp;
+  for (y = 0; y < n; y++) {
+    for (x = 0; x < n; x++) {
+      od_paint_get_predictors(mode,n,x,y,x_pred,y_pred,weight);
+      temp = 0;
+      temp += in[y_pred[0]*in_stride+x_pred[0]]*weight[0];
+      temp += in[y_pred[1]*in_stride+x_pred[1]]*weight[1];
+      temp += in[y_pred[2]*in_stride+x_pred[2]]*weight[2];
+      temp += in[y_pred[3]*in_stride+x_pred[3]]*weight[3];
+      out[y*n+x] = temp;
+    }
+  }
+}
+
 
 static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred, int ln, int pli, int bx, int by, int has_ur) {
   int frame_width;
@@ -323,30 +459,29 @@ static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coef
   xdec = enc->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
   frame_width = enc->state.frame_width;
   w = frame_width >> xdec;
-  od_coeff in[8*8];
-  od_coeff guess[8*8];
+  od_coeff* in;
+  od_coeff guess[16*16];
   int i;
   int x;
   int y;
-  float angle = 0;
-  float best_angle = 0;
+  int mode;
+  int best_mode = 0;
   int error;
-  int best_error = 100000;
+  int best_error = 100000000;
   int skew = 0;
-  for (y = 0; y < 8; y++) {
-    for (x = 0; x < 8; x++) {
-      in[y*8+x] = ctx->c[((by<<2)+y)*w+(bx<<2)+x];
-    }
-  }
-  for (angle = -1; angle < 1; angle += 0.01) {
-    od_paint_block(in, guess, angle);
-    error = od_paint_score(in, guess);
+  int n;
+  OD_ASSERT(ln >= 0 && ln <= 2);
+  n = 1 << (ln + 2);
+  in = &ctx->c[((by<<2))*w+(bx<<2)];
+  for (mode = 0; mode < 32; mode += 1) {
+    od_paint_block_new(in, w, guess, mode, n);
+    error = od_paint_score(in, w, guess, n);
     if (error < best_error) {
       best_error = error;
-      best_angle = angle;
+      best_mode = mode;
     }
   }
-  od_paint_block(in, pred, best_angle);
+  od_paint_block_new(in, w, pred, best_mode, n);
 }
 
 static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred,
