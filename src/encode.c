@@ -470,6 +470,7 @@ static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coef
   int best_error = 100000000;
   int skew = 0;
   int n;
+  OD_ASSERT(pli==0);
   OD_ASSERT(ln >= 0 && ln <= 2);
   n = 1 << (ln + 2);
   in = &ctx->c[((by<<2))*w+(bx<<2)];
@@ -815,9 +816,9 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
   }
 # endif
   if (pli == 0) {
-    for ( y = 0; y < 8; y++) {
-      for (x = 0; x < 8; x++) {
-        *(c + ((by << 2)+y)*w + (bx << 2) + x) = preds[y*8+x];
+    for ( y = 0; y < n; y++) {
+      for (x = 0; x < n; x++) {
+        *(c + ((by << 2)+y)*w + (bx << 2) + x) = preds[y*n+x];
       }
     }
   }
