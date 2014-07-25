@@ -208,6 +208,10 @@ int od_state_init(od_state *state, const daala_info *info) {
    sizeof(*state->bsize)*(state->nhsb + 2)*4*(state->nvsb + 2)*4);
   state->bstride = (state->nhsb + 2)*4;
   state->bsize += 4*state->bstride + 4;
+  state->paint_mode = (unsigned char *)_ogg_malloc(
+   sizeof(*state->paint_mode)*(state->nhsb + 2)*8*(state->nvsb + 2)*8);
+  state->paint_stride = (state->nhsb + 2)*8;
+  state->paint_mode += 8*state->paint_stride + 8;
 #if defined(OD_DUMP_IMAGES) || defined(OD_DUMP_RECONS)
   state->dump_tags = 0;
   state->dump_files = 0;

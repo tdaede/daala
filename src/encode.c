@@ -340,42 +340,45 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
     x_col_bottom = x + (n-y)*(cosa/sina);
     /* collision against right edge */
     y_col_right = y + (n-x)*(sina/cosa);
+    /*
+    fprintf(stderr,"%f %f %f %f\n", x_col_top, y_col_left, x_col_bottom, y_col_right);
+    */
     if (mode < 16) {
       /* must have collided with either top or left */
       if (x_col_top >= 0) {
         /* collided with top */
-        x_pred[0] = floor(x_col_top);
+        x_pred[0] = x_col_top;
         y_pred[0] = 0;
         weight[0] = 1.0-(x_col_top-x_pred[0]);
-        x_pred[1] = floor(x_col_top+1);
+        x_pred[1] = floor(x_col_top)+1;
         y_pred[1] = 0;
         weight[1] = 1.0-weight[0];
       } else {
         /* collided with left */
         x_pred[0] = 0;
-        y_pred[0] = floor(y_col_left);
+        y_pred[0] = y_col_left;
         weight[0] = 1.0-(y_col_left-y_pred[0]);
-        y_pred[1] = 0;
-        y_pred[1] = floor(y_col_left+1);
+        x_pred[1] = 0;
+        y_pred[1] = floor(y_col_left)+1;
         weight[1] = 1.0-weight[0];
       }
       /* AND */
       /* must have collided with either bottom or right */
       if (x_col_bottom <= n) {
         /* collided with bottom */
-        x_pred[2] = floor(x_col_bottom);
+        x_pred[2] = x_col_bottom;
         y_pred[2] = n;
         weight[2] = 1.0-(x_col_bottom-x_pred[2]);
-        x_pred[3] = floor(x_col_bottom+1);
+        x_pred[3] = floor(x_col_bottom)+1;
         y_pred[3] = n;
         weight[3] = 1.0-weight[2];
       } else {
         /*collided with right */
         x_pred[2] = n;
-        y_pred[2] = floor(y_col_right);
+        y_pred[2] = y_col_right;
         weight[2] = 1.0-(y_col_right-y_pred[2]);
-        y_pred[3] = n;
-        y_pred[3] = floor(y_col_right+1);
+        x_pred[3] = n;
+        y_pred[3] = floor(y_col_right)+1;
         weight[3] = 1.0-weight[2];
       }
     } else {
@@ -385,7 +388,7 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
         x_pred[0] = floor(x_col_top);
         y_pred[0] = 0;
         weight[0] = 1.0-(x_col_top-x_pred[0]);
-        x_pred[1] = floor(x_col_top+1);
+        x_pred[1] = floor(x_col_top)+1;
         y_pred[1] = 0;
         weight[1] = 1.0-weight[0];
       } else {
@@ -393,8 +396,8 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
         x_pred[0] = 0;
         y_pred[0] = floor(y_col_right);
         weight[0] = 1.0-(y_col_right-y_pred[0]);
-        y_pred[1] = 0;
-        y_pred[1] = floor(y_col_right+1);
+        x_pred[1] = 0;
+        y_pred[1] = floor(y_col_right)+1;
         weight[1] = 1.0-weight[0];
       }
       /* AND */
@@ -404,7 +407,7 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
         x_pred[2] = floor(x_col_bottom);
         y_pred[2] = n;
         weight[2] = 1.0-(x_col_bottom-x_pred[2]);
-        x_pred[3] = floor(x_col_bottom+1);
+        x_pred[3] = floor(x_col_bottom)+1;
         y_pred[3] = n;
         weight[3] = 1.0-weight[2];
       } else {
@@ -412,8 +415,8 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
         x_pred[2] = n;
         y_pred[2] = floor(y_col_left);
         weight[2] = 1.0-(y_col_left-y_pred[2]);
-        y_pred[3] = n;
-        y_pred[3] = floor(y_col_left+1);
+        x_pred[3] = n;
+        y_pred[3] = floor(y_col_left)+1;
         weight[3] = 1.0-weight[2];
       }
     }
@@ -431,15 +434,19 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
     }
     */
     /*
+    fprintf(stderr,"%d,%d %d,%d\n",x_pred[0],y_pred[0],x_pred[1],y_pred[1]);
+    */
     weight[0] *= w1;
     weight[1] *= w1;
     weight[2] *= w2;
     weight[3] *= w2;
-    */
+    
+    /*
     weight[0] = w1;
     weight[1] = 0;
     weight[2] = w2;
     weight[3] = 0;
+    */
   }
 }
 
@@ -448,10 +455,10 @@ static void od_paint_block_new(od_coeff* in, int in_stride, od_coeff* out, int m
   int x_pred[4];
   int y_pred[4];
   float weight[4];
+  float temp;
   for (y = 0; y < n; y++) {
     out[y*n] = in[y*in_stride];
   }
-  float temp;
   for (y = 0; y < n; y++) {
     for (x = 1; x < n; x++) {
       od_paint_get_predictors(mode,n,x,y,x_pred,y_pred,weight);
@@ -465,6 +472,13 @@ static void od_paint_block_new(od_coeff* in, int in_stride, od_coeff* out, int m
   }
 }
 
+static void od_paint_quantize(int mode, od_coeff* v) {
+  v[7] = 0;
+  v[6] = 0;
+  v[5] = 0;
+  v[3] = 0;
+  v[2] = 0;
+}
 
 static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred, int ln, int pli, int bx, int by, int has_ur) {
   int frame_width;
@@ -475,11 +489,14 @@ static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coef
   w = frame_width >> xdec;
   od_coeff* in;
   od_coeff guess[16*16];
+  od_coeff horiz[32];
+  od_coeff vert[32];
+  od_coeff input_quantized[32*32];
   int i;
   int x;
   int y;
   int mode;
-  int best_mode = 0;
+  int best_mode;
   int error;
   int best_error = 100000000;
   int skew = 0;
@@ -488,6 +505,11 @@ static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coef
   OD_ASSERT(ln >= 0 && ln <= 2);
   n = 1 << (ln + 2);
   in = &ctx->c[((by<<2))*w+(bx<<2)];
+  for (y = 0; y < 32; y++) {
+    for (x = 0; x < 32; x++) {
+      input_quantized[32*y+x] = in[y*w+x];
+    }
+  }
   for (mode = 0; mode < 32; mode += 1) {
     od_paint_block_new(in, w, guess, mode, n);
     error = od_paint_score(in, w, guess, n);
@@ -496,8 +518,14 @@ static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coef
       best_mode = mode;
     }
   }
-  /*best_mode = (bx>>4) & 0x1F;*/
-  od_paint_block_new(in, w, pred, best_mode, n);
+  OD_ASSERT(n == 8);
+  od_bin_fdct8(horiz, input_quantized, 1);
+  od_paint_quantize(mode,horiz);
+  od_bin_idct8(input_quantized, 1, horiz);
+  od_bin_fdct8(vert, input_quantized, 32);
+  od_paint_quantize(mode,vert);
+  od_bin_idct8(input_quantized, 32, vert);
+  od_paint_block_new(input_quantized, 32, pred, best_mode, n);
 }
 
 static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred,
