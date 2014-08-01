@@ -450,14 +450,14 @@ static void od_paint_get_predictors(int mode, int n, int x, int y, int *x_pred, 
   }
 }
 
-static void od_paint_block_new(od_coeff* in, int in_stride, od_coeff* out, int mode, int n) {
+static void od_paint_block_new(od_coeff* in, int in_stride, od_coeff* out, int out_stride, int mode, int n) {
   int x, y;
   int x_pred[4];
   int y_pred[4];
   float weight[4];
   float temp;
   for (y = 0; y < n; y++) {
-    out[y*n] = in[y*in_stride];
+    out[y*out_stride] = in[y*in_stride];
   }
   for (y = 0; y < n; y++) {
     for (x = 1; x < n; x++) {
@@ -467,7 +467,7 @@ static void od_paint_block_new(od_coeff* in, int in_stride, od_coeff* out, int m
       temp += in[y_pred[1]*in_stride+x_pred[1]]*weight[1];
       temp += in[y_pred[2]*in_stride+x_pred[2]]*weight[2];
       temp += in[y_pred[3]*in_stride+x_pred[3]]*weight[3];
-      out[y*n+x] = temp;
+      out[y*out_stride+x] = temp;
     }
   }
 }
@@ -480,25 +480,42 @@ static void od_paint_quantize(int mode, od_coeff* v) {
   v[2] = 0;
 }
 
+static int8_t od_paint_mode_search(od_coeff* in, int w, int n) {
+  int8_t mode;
+  int8_t best_mode;
+  int error;
+  int best_error = 100000000;
+  od_coeff guess[16*16];
+  for (mode = 0; mode < 32; mode += 1) {
+    od_paint_block_new(in, w, guess, n, mode, n);
+    error = od_paint_score(in, w, guess, n);
+    if (error < best_error) {
+      best_error = error;
+      best_mode = mode;
+    }
+  }
+  return best_mode;
+}
+
 static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred, int ln, int pli, int bx, int by, int has_ur) {
   int frame_width;
   int w;
   int xdec;
+  int mode;
+  int8_t best_mode;
+  int error;
+  int best_error = 100000000;
+  od_coeff guess[16*16];
   xdec = enc->state.io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
   frame_width = enc->state.frame_width;
   w = frame_width >> xdec;
   od_coeff* in;
-  od_coeff guess[16*16];
   od_coeff horiz[32];
   od_coeff vert[32];
   od_coeff input_quantized[32*32];
   int i;
   int x;
   int y;
-  int mode;
-  int best_mode;
-  int error;
-  int best_error = 100000000;
   int skew = 0;
   int n;
   OD_ASSERT(pli==0);
@@ -510,22 +527,22 @@ static void od_encode_pred_paint(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coef
       input_quantized[32*y+x] = in[y*w+x];
     }
   }
-  for (mode = 0; mode < 32; mode += 1) {
-    od_paint_block_new(in, w, guess, mode, n);
-    error = od_paint_score(in, w, guess, n);
-    if (error < best_error) {
-      best_error = error;
-      best_mode = mode;
-    }
-  }
+  
+  best_mode = od_paint_mode_search(in, w, n);
+  
+  /*
+  best_mode = enc->state.paint_mode[by*enc->state.paint_stride+bx];
+  */
+  
   OD_ASSERT(n == 8);
   od_bin_fdct8(horiz, input_quantized, 1);
-  od_paint_quantize(mode,horiz);
+  od_paint_quantize(best_mode,horiz);
   od_bin_idct8(input_quantized, 1, horiz);
   od_bin_fdct8(vert, input_quantized, 32);
-  od_paint_quantize(mode,vert);
+  od_paint_quantize(best_mode,vert);
   od_bin_idct8(input_quantized, 32, vert);
-  od_paint_block_new(input_quantized, 32, pred, best_mode, n);
+  
+  od_paint_block_new(input_quantized, 32, pred, n, best_mode, n);
 }
 
 static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_coeff *pred,
@@ -1519,6 +1536,30 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
               mctmp[pli][y*w + x] = (mdata[ystride*y + x] - 128)
                << coeff_shift;
             }
+          }
+        }
+      }
+      /*Compute paint frame.*/ 
+      if ((pli == 0 ) && (mbctx.is_keyframe)) {
+        /* Compute paint modes */
+        for (y = 0; y < ((nvsb-1)*32); y += 8) {
+          for (x = 0; x < ((nhsb-1)*32); x += 8) {
+            enc->state.paint_mode[(y/4)*enc->state.paint_stride+(x/4)] =
+              od_paint_mode_search(&ctmp[pli][y*w+x], w, 8);
+          }
+        }
+        /* Do paint */
+        for (y = 0; y < (nvsb*32); y+= 8) {
+          for (x = 0; x < (nhsb*32); x+= 8) {
+            od_paint_block_new(&ctmp[pli][y*w+x], w, &enc->state.paint[y*w+x], w, enc->state.paint_mode[(y/4)*enc->state.paint_stride+(x/4)], 8);
+          }
+        }
+        /*Apply the prefilter across the painted prediction.*/
+        for (sby = 0; sby < nvsb; sby++) {
+          for (sbx = 0; sbx < nhsb; sbx++) {
+            od_apply_prefilter(enc->state.paint, w, sbx, sby, 3, enc->state.bsize,
+             enc->state.bstride, xdec, ydec, (sbx > 0 ? OD_LEFT_EDGE : 0) |
+             (sby < nvsb - 1 ? OD_BOTTOM_EDGE : 0));
           }
         }
       }

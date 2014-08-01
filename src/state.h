@@ -149,8 +149,9 @@ struct od_state{
   unsigned char *bsize;
   int                 bstride;
   od_coeff           *(sb_dc_mem[OD_NPLANES_MAX]);
-  od_coeff           *paint_mode;
+  int8_t             *paint_mode;
   int                 paint_stride;
+  od_coeff           *paint;
   int                 mv_res;
 # if defined(OD_DUMP_IMAGES) || defined(OD_DUMP_RECONS)
   int                 dump_tags;
