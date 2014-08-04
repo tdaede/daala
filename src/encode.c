@@ -620,7 +620,14 @@ static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_co
 #if !OD_DISABLE_INTRA
         od_ec_encode_cdf_unscaled(&enc->ec, mode, mode_cdf, OD_INTRA_NMODES);
 #endif
-        od_encode_pred_paint(enc, ctx, pred, ln, pli, bx, by,has_ur);
+        /* do paint prediction */
+        /* forward transform the coefficients the prefiltered paint */
+#if OD_PAINT
+        if (pli == 0) {
+          (*OD_FDCT_2D[ln])(pred, n, enc->state.paint + (by << 2)*w + (bx << 2), w);
+        }
+#endif
+        /*od_encode_pred_paint(enc, ctx, pred, ln, pli, bx, by,has_ur);*/
         OD_ACCT_UPDATE(&enc->acct, od_ec_enc_tell_frac(&enc->ec),
          OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
         mode_bits -= M_LOG2E*log(
@@ -875,6 +882,7 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
     }
   }
 # endif
+#if 0
   if (pli == 0) {
     for ( y = 0; y < n; y++) {
       for (x = 0; x < n; x++) {
@@ -882,7 +890,8 @@ void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
       }
     }
   }
-  /*(*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w, preds, n);*/
+#endif
+  (*OD_IDCT_2D[ln])(c + (by << 2)*w + (bx << 2), w, preds, n);
 #endif
 }
 
@@ -1542,10 +1551,21 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
       /*Compute paint frame.*/ 
       if ((pli == 0 ) && (mbctx.is_keyframe)) {
         /* Compute paint modes */
+        uint8_t mode;
+        uint8_t previous_mode = 0;
+        int8_t mode_delta;
+        int mode_direct;
         for (y = 0; y < ((nvsb-1)*32); y += 8) {
           for (x = 0; x < ((nhsb-1)*32); x += 8) {
-            enc->state.paint_mode[(y/4)*enc->state.paint_stride+(x/4)] =
-              od_paint_mode_search(&ctmp[pli][y*w+x], w, 8);
+            mode = od_paint_mode_search(&ctmp[pli][y*w+x], w, 8);
+            enc->state.paint_mode[(y/4)*enc->state.paint_stride+(x/4)] = mode;
+            mode_delta = (mode - previous_mode);
+            mode_direct = abs(mode_delta) > 7;
+            fprintf(stderr,"%d ",mode_direct);
+            od_ec_encode_bool_q15(&enc->ec, (mode_delta&0x10)>>4, 16384);
+            mode_delta &= 0x0F;
+            od_ec_enc_uint(&enc->ec, mode_delta, 16);
+            previous_mode = mode;
           }
         }
         /* Do paint */
