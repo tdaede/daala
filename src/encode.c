@@ -56,6 +56,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 static double mode_bits = 0;
 static double mode_count = 0;
 
+static uint16_t od_paint_mode_cdf[] = {
+7027,10250,12240,13829,15044,16221,17500,19005,20965,22577,
+23771,24959,26234,27845,29710,32768
+};
+
 void od_enc_opt_vtbl_init_c(od_enc_ctx *enc) {
   enc->opt_vtbl.mc_compute_sad_4x4_xstride_1 =
    od_mc_compute_sad_4x4_xstride_1_c;
@@ -1554,17 +1559,15 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
         uint8_t mode;
         uint8_t previous_mode = 0;
         int8_t mode_delta;
-        int mode_direct;
+        int mode_large;
         for (y = 0; y < ((nvsb-1)*32); y += 8) {
           for (x = 0; x < ((nhsb-1)*32); x += 8) {
             mode = od_paint_mode_search(&ctmp[pli][y*w+x], w, 8);
+            mode &= 0xFE;
             enc->state.paint_mode[(y/4)*enc->state.paint_stride+(x/4)] = mode;
-            mode_delta = (mode - previous_mode);
-            mode_direct = abs(mode_delta) > 7;
-            fprintf(stderr,"%d ",mode_direct);
-            od_ec_encode_bool_q15(&enc->ec, (mode_delta&0x10)>>4, 16384);
-            mode_delta &= 0x0F;
-            od_ec_enc_uint(&enc->ec, mode_delta, 16);
+            mode_delta = ((mode - previous_mode)>>1) & 0x0F;
+            fprintf(stderr,"%d ",mode_delta);
+            od_ec_encode_cdf_q15(&enc->ec, mode_delta, od_paint_mode_cdf, 16);
             previous_mode = mode;
           }
         }
