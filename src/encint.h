@@ -43,7 +43,10 @@ typedef struct od_rollback_buffer od_rollback_buffer;
 /*A packet ready to output.*/
 # define OD_PACKET_READY       (1)
 /*The number of fractional bits of precision in our \lambda values.*/
-# define OD_LAMBDA_SCALE       (5)
+# define OD_LAMBDA_SCALE       (2)
+/*The number of bits of precision to add to distortion values to match
+   \lambda*R.*/
+# define OD_ERROR_SCALE        (OD_LAMBDA_SCALE + OD_BITRES)
 
 struct od_enc_opt_vtbl {
   int (*mc_compute_sad_4x4_xstride_1)(const unsigned char *src,
@@ -61,7 +64,7 @@ struct daala_enc_ctx{
   oggbyte_buffer obb;
   od_ec_enc ec;
   int packet_state;
-  int scale[OD_NPLANES_MAX];
+  int quantizer[OD_NPLANES_MAX];
   od_mv_est_ctx *mvest;
 #if defined(OD_ENCODER_CHECK)
   struct daala_dec_ctx *dec;

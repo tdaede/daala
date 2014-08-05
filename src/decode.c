@@ -135,7 +135,6 @@ struct od_mb_dec_ctx {
   int ncount;
   int count_total_q8;
   int count_ex_total_q8;
-  ogg_uint16_t mode_p0[OD_INTRA_NMODES];
 };
 typedef struct od_mb_dec_ctx od_mb_dec_ctx;
 
@@ -194,8 +193,8 @@ static void od_decode_compute_pred(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, od_co
         m_l = modes[by*(w >> 2) + bx - 1];
         m_ul = modes[(by - 1)*(w >> 2) + bx - 1];
         m_u = modes[(by - 1)*(w >> 2) + bx];
-        od_intra_pred_cdf(mode_cdf, OD_INTRA_PRED_PROB_4x4[pli],
-         ctx->mode_p0, OD_INTRA_NMODES, m_l, m_ul, m_u);
+        od_intra_pred_cdf(mode_cdf, dec->adapt.mode_probs[pli],
+         OD_INTRA_NMODES, m_l, m_ul, m_u);
 #if OD_DISABLE_INTRA
         mode = 0;
 #else
@@ -210,7 +209,7 @@ static void od_decode_compute_pred(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, od_co
             modes[(by + y)*(w >> 2) + bx + x] = mode;
           }
         }
-        od_intra_pred_update(ctx->mode_p0, OD_INTRA_NMODES, mode,
+        od_intra_pred_update(dec->adapt.mode_probs[pli], OD_INTRA_NMODES, mode,
          m_l, m_ul, m_u);
       }
       else {
@@ -271,7 +270,7 @@ static void od_decode_compute_pred(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, od_co
 }
 
 static void od_single_band_scalar_decode(daala_dec_ctx *dec, int ln,
- od_coeff *pred, const od_coeff *predt, int scale, int pli, int coeff_shift) {
+ od_coeff *pred, const od_coeff *predt, int q, int pli) {
   int *adapt;
   int vk;
   int zzi;
@@ -283,7 +282,7 @@ static void od_single_band_scalar_decode(daala_dec_ctx *dec, int ln,
    &dec->adapt.ex_g[pli][ln], 0);
   laplace_decode_vector(&dec->ec, pred + 1, n2 - 1, vk, adapt_curr, adapt);
   for (zzi = 1; zzi < n2; zzi++) {
-    pred[zzi] = (pred[zzi]*scale << coeff_shift) + predt[zzi];
+    pred[zzi] = pred[zzi]*q + predt[zzi];
   }
   if (adapt_curr[OD_ADAPT_K_Q8] > 0) {
     adapt[OD_ADAPT_K_Q8] += 256*adapt_curr[OD_ADAPT_K_Q8] -
@@ -313,9 +312,8 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
   od_coeff pred[16*16];
   od_coeff predt[16*16];
   int run_pvq;
-  int scale;
-  int dc_scale;
-  int coeff_shift;
+  int quant;
+  int dc_quant;
 #ifndef USE_BAND_PARTITIONS
   unsigned char const *zig;
 #endif
@@ -353,28 +351,28 @@ void od_single_band_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
     }
   }
 #endif
-  scale = OD_MAXI(dec->scale[pli], 1);
+  quant = OD_MAXI(1, dec->quantizer[pli]);
   if (run_pvq)
-    dc_scale = OD_MAXI(1, scale*OD_PVQ_QM_Q4[pli][ln][0] >> 4);
+    dc_quant = OD_MAXI(1, quant*OD_PVQ_QM_Q4[pli][ln][0] >> 4);
   else
-    dc_scale = (pli==0 || dec->scale[pli]==0) ? scale : (scale + 1) >> 1;
-  coeff_shift = dec->scale[pli] == 0 ? 0 : OD_COEFF_SHIFT;
+    dc_quant = (pli==0 || dec->quantizer[pli]==0) ? quant : (quant + 1) >> 1;
   if (run_pvq) {
-    pvq_decode(dec, predt, pred, scale << coeff_shift, pli, ln,
+    pvq_decode(dec, predt, pred, quant, pli, ln,
      OD_PVQ_QM_Q4[pli][ln], OD_PVQ_BETA[pli][ln],
      OD_PVQ_INTER_BAND_MASKING[ln], ctx->is_keyframe);
   }
   else {
-    od_single_band_scalar_decode(dec, ln, pred, predt, scale, pli,
-     coeff_shift);
+    od_single_band_scalar_decode(dec, ln, pred, predt, quant, pli);
   }
   if (OD_DISABLE_HAAR_DC || !ctx->is_keyframe) {
-    if (!run_pvq || pred[0]) {
-      pred[0] = run_pvq + generic_decode(&dec->ec, &dec->adapt.model_dc[pli],
-       -1, &dec->adapt.ex_dc[pli][ln][0], 2);
+    int has_dc_skip;
+    has_dc_skip = !ctx->is_keyframe && run_pvq;
+    if (!has_dc_skip || pred[0]) {
+      pred[0] = has_dc_skip + generic_decode(&dec->ec,
+       &dec->adapt.model_dc[pli], -1, &dec->adapt.ex_dc[pli][ln][0], 2);
       if (pred[0]) pred[0] *= od_ec_dec_bits(&dec->ec, 1) ? -1 : 1;
     }
-    pred[0] = (pred[0]*dc_scale << coeff_shift) + predt[0];
+    pred[0] = pred[0]*dc_quant + predt[0];
   }
   else {
     pred[0] = d[((by << 2))*w + ((bx << 2))];
@@ -427,7 +425,7 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
   int d;
   int w;
   int i;
-  int dc_scale;
+  int dc_quant;
   od_coeff *c;
   c = ctx->d[pli];
   w = dec->state.frame_width >> xdec;
@@ -437,10 +435,9 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
    dec->state.bstride, bx << l, by << l);
   d = OD_MAXI(od, xdec);
   OD_ASSERT(d <= l);
-  if (dec->scale[pli] == 0) dc_scale = 1;
+  if (dec->quantizer[pli] == 0) dc_quant = 1;
   else {
-    dc_scale = OD_MAXI(1, dec->scale[pli]*OD_DC_RES[pli] >> 4)
-     << OD_COEFF_SHIFT;
+    dc_quant = OD_MAXI(1, dec->quantizer[pli]*OD_DC_RES[pli] >> 4);
   }
   if (l == 3) {
     int nhsb;
@@ -474,7 +471,7 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
     if (quant) {
       if (od_ec_dec_bits(&dec->ec, 1)) quant = -quant;
     }
-    sb_dc_curr = quant*dc_scale + sb_dc_pred;
+    sb_dc_curr = quant*dc_quant + sb_dc_pred;
     c[(by << l2)*w + (bx << l2)] = sb_dc_curr;
     sb_dc_mem[by*nhsb + bx] = sb_dc_curr;
     if (by > 0) vgrad = sb_dc_mem[(by - 1)*nhsb + bx] - sb_dc_curr;
@@ -482,7 +479,6 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
   }
   if (l > d) {
     od_coeff x[4];
-    od_coeff tmp;
     int l2;
     l--;
     bx <<= 1;
@@ -499,7 +495,7 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
       if (quant) {
         if (od_ec_dec_bits(&dec->ec, 1)) quant = -quant;
       }
-      x[i] = quant*dc_scale;
+      x[i] = quant*dc_quant;
     }
     /* Gives best results for subset1, more conservative than the
        theoretical /4 of a pure gradient. */
@@ -507,13 +503,7 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
     x[2] += vgrad/5;
     hgrad = x[1];
     vgrad = x[2];
-    x[0] += x[2];
-    x[3] -= x[1];
-    tmp = (x[0] - x[3]) >> 1;
-    x[1] = tmp - x[1];
-    x[2] = tmp - x[2];
-    x[0] -= x[1];
-    x[3] += x[2];
+    OD_HAAR_KERNEL(x[0], x[1], x[2], x[3]);
     c[(by << l2)*w + (bx << l2)] = x[0];
     c[(by << l2)*w + ((bx + 1) << l2)] = x[1];
     c[((by + 1) << l2)*w + (bx << l2)] = x[2];
@@ -731,7 +721,6 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
     int ydec;
     int sby;
     int sbx;
-    int mi;
     int h;
     int w;
     int y;
@@ -743,9 +732,6 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
       ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
       mbctx.modes[pli] = _ogg_calloc((frame_width >> (2 + xdec))
        *(frame_height >> (2 + ydec)), sizeof(*mbctx.modes[pli]));
-    }
-    for (mi = 0; mi < OD_INTRA_NMODES; mi++) {
-      mbctx.mode_p0[mi] = 32768/OD_INTRA_NMODES;
     }
     if (mbctx.is_keyframe) {
       for (pli = 0; pli < (OD_DISABLE_CFL ? nplanes : 1); pli++) {
@@ -770,7 +756,7 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
           unsigned char *mdata;
           int ystride;
           int coeff_shift;
-          coeff_shift = dec->scale[pli] == 0 ? 0 : OD_COEFF_SHIFT;
+          coeff_shift = dec->quantizer[pli] == 0 ? 0 : OD_COEFF_SHIFT;
           mdata = dec->state.io_imgs[OD_FRAME_REC].planes[pli].data;
           ystride = dec->state.io_imgs[OD_FRAME_REC].planes[pli].ystride;
           for (y = 0; y < h; y++) {
@@ -795,8 +781,9 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
       ydec = dec->state.io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
       w = frame_width >> xdec;
       h = frame_height >> ydec;
-      dec->scale[pli] = od_ec_dec_uint(&dec->ec, 512);
-      mbctx.run_pvq[pli] = dec->scale[pli] &&
+      /* TODO: We shouldn't be encoding the full, linear quantizer range. */
+      dec->quantizer[pli] = od_ec_dec_uint(&dec->ec, 512 << OD_COEFF_SHIFT);
+      mbctx.run_pvq[pli] = dec->quantizer[pli] &&
        od_ec_decode_bool_q15(&dec->ec, 16384);
       ctmp[pli] = _ogg_calloc(w*h, sizeof(*ctmp[pli]));
       dtmp[pli] = _ogg_calloc(w*h, sizeof(*dtmp[pli]));
@@ -867,7 +854,7 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
         for (y = 0; y < h; y++) {
           for (x = 0; x < w; x++) {
             int coeff_shift;
-            coeff_shift = dec->scale[pli] == 0 ? 0 : OD_COEFF_SHIFT;
+            coeff_shift = dec->quantizer[pli] == 0 ? 0 : OD_COEFF_SHIFT;
             data[ystride*y + x] = OD_CLAMP255(((ctmp[pli][y*w + x]
              + (1 << coeff_shift >> 1)) >> coeff_shift) + 128);
           }
