@@ -124,6 +124,7 @@ info.c \
 internal.c \
 intra.c \
 intradata.c \
+intra_paint.c \
 laplace_decoder.c \
 laplace_tables.c \
 logging.c \
@@ -160,6 +161,7 @@ partition.h \
 pvq_code.h \
 internal.h \
 intra.h \
+intra_paint.h \
 logging.h \
 mc.h \
 odintrin.h \
