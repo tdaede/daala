@@ -214,16 +214,14 @@ int od_state_init(od_state *state, const daala_info *info) {
 #endif
 #if !OD_DISABLE_PAINT
   {
-    int w,h,h8,w8,h32,w32;
+    int w,h,h8,w8;
     /* intra_paint */
     w = state->frame_width;
     h = state->frame_height;
-    w32 = w>>5;
-    h32 = h>>5;
-    w8 = w32<<2;
-    h8 = h32<<2;
-    state->edge_sum = (int*)calloc((w+32)*(h+32), sizeof(*state->edge_sum));
-    state->edge_count = (int*)calloc((w+32)*(h+32), sizeof(*state->edge_count));
+    w8 = state->nhsb*4;
+    h8 = state->nvsb*4;
+    state->edge_sum = (int*)calloc((w+32+1)*(h+32+1), sizeof(*state->edge_sum));
+    state->edge_count = (int*)calloc((w+32+1)*(h+32+1), sizeof(*state->edge_count));
     state->dec8 = (unsigned char*)malloc(w8*h8*sizeof(*state->dec8));
     state->mode = (unsigned char*)malloc(w8*h8*sizeof(*state->mode)<<2);
   }
