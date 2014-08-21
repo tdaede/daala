@@ -71,7 +71,7 @@ void od_intra_pred4x4_mult(double *pred, int pred_stride, od_coeff *blocks[4],
   }
 }
 
-/*
+
 void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
  int strides[4], int mode) {
   const ogg_uint16_t *index;
@@ -102,7 +102,7 @@ void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
     }
   }
 }
-*/
+/*
 void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
  int strides[4], int mode) {
   int j;
@@ -121,7 +121,7 @@ void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
     }
   }
 }
-
+*/
 void od_intra_pred16x16_mult(double *pred, int pred_stride,
  od_coeff *blocks[4], int strides[4], int mode) {
   const ogg_uint16_t *index;
