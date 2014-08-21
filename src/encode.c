@@ -1307,6 +1307,7 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
         }
       }
     }
+    od_state_dump_coeffs(&enc->state, enc->state.ctmp[0], enc->state.frame_width, enc->state.frame_height, enc->state.frame_width, "prefilter");
     for (sby = 0; sby < nvsb; sby++) {
       for (sbx = 0; sbx < nhsb; sbx++) {
         for (pli = 0; pli < nplanes; pli++) {
