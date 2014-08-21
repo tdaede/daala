@@ -71,6 +71,7 @@ void od_intra_pred4x4_mult(double *pred, int pred_stride, od_coeff *blocks[4],
   }
 }
 
+/*
 void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
  int strides[4], int mode) {
   const ogg_uint16_t *index;
@@ -96,6 +97,25 @@ void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
         sum += blocks[id][strides[id]*y + x]*(*weights);
         index++;
         weights++;
+      }
+      pred[pred_stride*j + i] = sum;
+    }
+  }
+}
+*/
+void od_intra_pred8x8_mult(double *pred, int pred_stride, od_coeff *blocks[4],
+ int strides[4], int mode) {
+  int j;
+  int i;
+  int k;
+  for (j = 0; j < 8; j++) {
+    for (i = 0; i < 8; i++) { 
+      double sum;
+      sum = blocks[3][strides[3]*j + i]*1;
+      if ((j == 0) && (k == 0)) {
+        sum = 1000;
+      } else {
+        sum = 0;
       }
       pred[pred_stride*j + i] = sum;
     }

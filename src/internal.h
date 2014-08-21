@@ -54,12 +54,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #  error "block sizes above 16x16 not supported"
 # endif
 # define OD_DISABLE_FILTER (0)
-# define OD_DISABLE_INTRA (1)
-# define OD_DISABLE_HAAR_DC (0)
-# define OD_DISABLE_PVQ (0)
+# define OD_DISABLE_INTRA (0)
+# define OD_DISABLE_HAAR_DC (1)
+# define OD_DISABLE_PVQ (1)
 # define OD_DISABLE_CFL (0)
 # define OD_DISABLE_MASKING (0)
 # define OD_DISABLE_QM (0)
+
+# define OD_OUTPUT_PRED (1)
 
 # define OD_COEFF_SHIFT (4)
 /*OD_QUALITY_SHIFT specifies the number of fractional bits in a
