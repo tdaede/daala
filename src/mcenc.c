@@ -59,7 +59,7 @@ typedef int od_pattern[8];
 /*The maximum distortion allowed for a 4x4 SAD calculation.
   This is a simple and dumb way to guess when the reference
   will not be used.*/
-#define OD_DISTORTION_MAX (10)
+#define OD_DISTORTION_MAX (100)
 
 /*The subdivision level of a MV in the mesh, given its position (mod 4).*/
 static const int OD_MC_LEVEL[4][4] = {
