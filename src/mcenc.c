@@ -56,6 +56,11 @@ typedef int od_pattern[8];
 /*The number of bits to reduce chroma SADs by, if used.*/
 #define OD_MC_CHROMA_SCALE (2)
 
+/*The maximum distortion allowed for a 4x4 SAD calculation.
+  This is a simple and dumb way to guess when the reference
+  will not be used.*/
+#define OD_DISTORTION_MAX (10)
+
 /*The subdivision level of a MV in the mesh, given its position (mod 4).*/
 static const int OD_MC_LEVEL[4][4] = {
   { 0, 4, 2, 4 },
@@ -217,14 +222,17 @@ static ogg_int32_t od_enc_sad8(od_enc_ctx *enc, const unsigned char *p,
   else if (w == 4 && h == 4) {
     ret = (*enc->opt_vtbl.mc_compute_sad_4x4_xstride_1)(src, iplane->ystride,
      p, pystride);
+    ret = OD_MINI(ret, OD_DISTORTION_MAX);
   }
   else if (w == 8 && h == 8) {
     ret = (*enc->opt_vtbl.mc_compute_sad_8x8_xstride_1)(src, iplane->ystride,
      p, pystride);
+    ret = OD_MINI(ret, OD_DISTORTION_MAX*4);
   }
   else if (w == 16 && h == 16) {
     ret = (*enc->opt_vtbl.mc_compute_sad_16x16_xstride_1)(src, iplane->ystride,
      p, pystride);
+    ret = OD_MINI(ret, OD_DISTORTION_MAX*16);
   }
   else {
     /*Default C implementation.*/
