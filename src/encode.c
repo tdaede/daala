@@ -927,9 +927,7 @@ static void od_predict_frame(daala_enc_ctx *enc) {
     flags during the motion search, so we waste far too many bits trying to
     predict unpredictable areas when lamba is too small.
    Hopefully when we fix that, we can remove the limit.*/
-  od_mv_est(enc->mvest, OD_FRAME_PREV,
-   OD_MAXI((2851196 + (((1 << OD_COEFF_SHIFT) - 1) >> 1) >> OD_COEFF_SHIFT)*
-   enc->quantizer[0] >> (23 - OD_LAMBDA_SCALE), 56));
+  od_mv_est(enc->mvest, OD_FRAME_PREV, 20);
   od_state_mc_predict(&enc->state, OD_FRAME_PREV);
   /*Do edge extension here because the block-size analysis needs to read
     outside the frame, but otherwise isn't read from.*/
