@@ -68,6 +68,14 @@ void od_post_filter32(od_coeff _x[32], const od_coeff _y[32]);
 # define OD_BOTTOM_EDGE (1<<1)
 # define OD_LEFT_EDGE   (1<<0)
 
+const int OD_FILT_SIZE[OD_NBSIZES];
+void od_apply_filter_sb_rows(od_coeff *c, int stride, int nhsb, int nvsb,
+ int xdec, int ydec, int inv, int ln);
+void od_apply_filter_sb_cols(od_coeff *c, int stride, int nhsb, int nvsb,
+ int xdec, int ydec, int inv, int ln);
+void od_apply_filter_hsplit(od_coeff *c0, int stride, int inv, int ln, int f);
+void od_apply_filter_vsplit(od_coeff *c0, int stride, int inv, int ln, int f);
+
 void od_apply_prefilter(od_coeff *c, int w, int bx, int by, unsigned char l,
  const unsigned char *bsize, int bstride, int xdec, int ydec, int edge);
 void od_apply_postfilter(od_coeff *c, int w, int bx, int by, unsigned char l,
