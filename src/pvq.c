@@ -36,18 +36,126 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 
 #define EPSILON 1e-30
 
+/*These tables were generated using compute_basis.c, if OD_FILT_SIZE is changed,
+   they have to be regenerated.*/
+const double mag4[] = {0.774125, 0.877780, 0.925934, 0.951682};
+const double mag8[] = {
+  0.836776, 0.844316, 0.917307, 0.924980,
+  0.948172, 0.936507, 0.968913, 0.967917
+};
+const double mag16[] = {
+  0.921737, 0.868401, 0.925373, 0.958481,
+  0.959319, 0.954073, 0.962690, 0.975782,
+  0.974046, 0.967441, 0.968526, 0.979529,
+  0.985361, 0.982844, 0.983440, 0.993243
+};
+const double mag32[] = {
+  0.961865, 0.926229, 0.935907, 0.950836,
+  0.962498, 0.972889, 0.979745, 0.979867,
+  0.980251, 0.978192, 0.976537, 0.978706,
+  0.981138, 0.984588, 0.987381, 0.987904,
+  0.987045, 0.985931, 0.983917, 0.983186,
+  0.983692, 0.987112, 0.989474, 0.992827,
+  0.992394, 0.991791, 0.991204, 0.990484,
+  0.992098, 0.994740, 0.995867, 1.000695
+};
+const double *od_basis_mag[] = {mag4, mag8, mag16, mag32};
+
+/*FIXME: Currently unused*/
+#if OD_TUNE_MODE == OD_TUNE_PSNR
+const int OD_QM4[] = {
+  16, 16, 16, 16,
+  16, 16, 16, 16,
+  16, 16, 16, 16,
+  16, 16, 16, 16
+};
+#else
+const int OD_QM4[] = {
+  16, 19, 21, 23,
+  19, 21, 23, 26,
+  21, 23, 26, 28,
+  23, 26, 28, 31
+};
+#endif
+
+#if OD_TUNE_MODE == OD_TUNE_PSNR
+const int OD_QM8[] = {
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16
+};
+#else
+/*FIXME: Explain how these matrices were chosen.*/
+# if 1
+const int OD_QM8[] = {
+  16, 16, 18, 21, 24, 28, 32, 36,
+  16, 17, 20, 21, 24, 27, 31, 35,
+  18, 20, 24, 25, 27, 31, 33, 38,
+  21, 21, 25, 28, 30, 34, 37, 42,
+  24, 24, 27, 30, 34, 38, 43, 49,
+  28, 27, 31, 34, 38, 44, 50, 58,
+  32, 31, 33, 37, 43, 50, 58, 68,
+  36, 35, 38, 42, 49, 58, 68, 78
+};
+# endif
+# if 0
+const int OD_QM8[] = {
+  16, 17, 18, 19, 20, 21, 22, 23,
+  17, 18, 19, 20, 21, 22, 23, 24,
+  18, 19, 20, 21, 22, 23, 24, 25,
+  19, 20, 21, 22, 23, 24, 26, 27,
+  20, 21, 22, 23, 25, 26, 27, 28,
+  21, 22, 23, 24, 26, 27, 28, 30,
+  22, 23, 24, 26, 27, 28, 30, 31,
+  23, 24, 25, 27, 28, 30, 31, 33};
+# endif
+# if 0
+const int OD_QM8[] = {
+  16, 16, 19, 22, 22, 26, 26, 27,
+  16, 16, 22, 22, 26, 27, 27, 29,
+  19, 22, 26, 26, 27, 29, 29, 35,
+  22, 24, 27, 27, 29, 32, 34, 38,
+  26, 27, 29, 29, 32, 35, 38, 46,
+  27, 29, 34, 34, 35, 40, 46, 56,
+  29, 34, 34, 37, 40, 48, 56, 69,
+  34, 37, 38, 40, 48, 58, 69, 83
+};
+# endif
+# if 0
+const int OD_QM8[] = {
+  16, 16, 17, 20, 24, 29, 36, 42,
+  16, 17, 17, 19, 22, 26, 31, 37,
+  17, 17, 21, 23, 26, 30, 34, 40,
+  20, 19, 23, 28, 31, 35, 39, 45,
+  24, 22, 26, 31, 36, 41, 46, 51,
+  29, 26, 30, 35, 41, 47, 52, 58,
+  36, 31, 34, 39, 46, 52, 59, 66,
+  42, 37, 40, 45, 51, 58, 66, 73
+};
+# endif
+#endif
+
 /* These are the PVQ equivalent of quantization matrices, except that
    the values are per-band. */
 
 #if OD_DISABLE_QM
 
+/*FIXME: Explain why the DC coefficients are not 16 (related to Haar DC).*/
 static const unsigned char od_flat_qm_q4[OD_QM_SIZE] = {
-  16, 16,
-  16, 16, 16, 16,
-  15, 15, 15, 15, 15, 15,
-  13, 13, 13, 13, 13, 13, 13, 13
+  27, 16,
+  23, 16, 16, 16,
+  19, 16, 16, 16, 16, 16,
+  17, 16, 16, 16, 16, 16, 16, 16
 };
 
+/*No interpolation, always use od_flat_qm_q4, but use a different scale for
+ each plane.
+ FIXME: The scale used for each plane is not properly tuned, see also OD_DC_RES.*/
 const od_qm_entry OD_DEFAULT_QMS[][OD_NPLANES_MAX] = {
   {{15, 256, od_flat_qm_q4},
    {15, 448, od_flat_qm_q4},
@@ -60,19 +168,23 @@ const od_qm_entry OD_DEFAULT_QMS[][OD_NPLANES_MAX] = {
 #else
 
 static const unsigned char od_low_rate_qm_q4[OD_QM_SIZE] = {
-  16, 16,
+  16, 19,
   16, 16, 24, 32,
-  16, 16, 18, 20, 24, 32,
-  16, 16, 16, 18, 18, 20, 24, 32
+  16, 15, 17, 19, 23, 31,
+  16, 14, 14, 16, 16, 18, 21, 29
 };
 
 static const unsigned char od_high_rate_qm_q4[OD_QM_SIZE] = {
-  19, 22,
+  19, 26,
   15, 17, 52, 83,
-  11, 11, 14, 18, 42, 70,
-  7, 7, 8, 9, 12, 18, 38, 60
+  11, 11, 13, 16, 39, 65,
+  7, 7, 8, 9, 11, 16, 35, 54
 };
 
+/* Interpolate between using od_high_rate_qm_q4 and a different scale for
+ each plane at high bit rate (-v 20 or less) and using od_low_rate_qm_q4
+ with the same scale for each plane at low bit rate (-v 70 or more).
+ */
 const od_qm_entry OD_DEFAULT_QMS[][OD_NPLANES_MAX] = {
   {{20, 256, od_high_rate_qm_q4},
    {20, 448, od_high_rate_qm_q4},
@@ -120,6 +232,33 @@ const double *const OD_PVQ_BETA[OD_NPLANES_MAX][OD_NBSIZES] = {
   {OD_PVQ_BETA4_CHROMA, OD_PVQ_BETA8_CHROMA,
    OD_PVQ_BETA16_CHROMA, OD_PVQ_BETA32_CHROMA}
 };
+
+/*Apply the quantization matrix OD_QM8 and the magnitude compensation which is
+  needed because of lapping.
+  FIXME: Explain why we need magnitude compensation better.*/
+void od_apply_qm(od_coeff *out, int out_stride, od_coeff *in, int in_stride,
+ int ln, int inverse) {
+  int i;
+  int j;
+  for (i = 0; i < 4 << ln; i++) {
+    for (j = 0; j < 4 << ln; j++) {
+      double mag;
+      mag = od_basis_mag[ln][i]*od_basis_mag[ln][j];
+      if (i == 0 && j == 0) {
+        mag = 1;
+      }
+      else {
+        mag /= 0.0625*OD_QM8[(i << 1 >> ln)*8 + (j << 1 >> ln)];
+      }
+      if (inverse) {
+        out[i*out_stride + j] = (od_coeff)floor(.5 + in[i*in_stride + j]/mag);
+      }
+      else {
+        out[i*out_stride + j] = (od_coeff)floor(.5 + in[i*in_stride + j]*mag);
+      }
+    }
+  }
+}
 
 /* Indexing for the packed quantization matrices. */
 int od_qm_get_index(int ln, int band) {
