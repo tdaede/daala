@@ -390,7 +390,7 @@ static void od_encode_compute_pred(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, od_co
   }
 }
 
-static void od_single_band_lossless_encode(daala_enc_ctx *enc, int ln,
+static int od_single_band_lossless_encode(daala_enc_ctx *enc, int ln,
  od_coeff *scalar_out, const od_coeff *cblock, const od_coeff *predt,
  int pli) {
   int *adapt;
@@ -424,9 +424,10 @@ static void od_single_band_lossless_encode(daala_enc_ctx *enc, int ln,
     adapt[OD_ADAPT_COUNT_EX_Q8] += adapt_curr[OD_ADAPT_COUNT_EX_Q8]-
      adapt[OD_ADAPT_COUNT_EX_Q8] >> OD_SCALAR_ADAPT_SPEED;
   }
+  return vk == 0;
 }
 
-static void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
+static int od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
  int pli, int bx, int by) {
   int n;
   int xdec;
@@ -443,6 +444,7 @@ static void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
   int quant;
   int dc_quant;
   int lossless;
+  int skip;
 #if defined(OD_OUTPUT_PRED)
   od_coeff preds[OD_BSIZE_MAX*OD_BSIZE_MAX];
   int zzi;
@@ -497,10 +499,10 @@ static void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
   }
   OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_AC_COEFFS);
   if (lossless) {
-    od_single_band_lossless_encode(enc, ln, scalar_out, cblock, predt, pli);
+    skip = od_single_band_lossless_encode(enc, ln, scalar_out, cblock, predt, pli);
   }
   else {
-    od_pvq_encode(enc, predt, cblock, scalar_out, quant, pli, ln,
+    skip = od_pvq_encode(enc, predt, cblock, scalar_out, quant, pli, ln,
      OD_PVQ_BETA[pli][ln], OD_ROBUST_STREAM, ctx->is_keyframe);
   }
   OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
@@ -512,7 +514,10 @@ static void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
       generic_encode(&enc->ec, &enc->state.adapt.model_dc[pli],
        abs(scalar_out[0]) - has_dc_skip, -1, &enc->state.adapt.ex_dc[pli][ln][0], 2);
     }
-    if (scalar_out[0]) od_ec_enc_bits(&enc->ec, scalar_out[0] < 0, 1);
+    if (scalar_out[0]) {
+      od_ec_enc_bits(&enc->ec, scalar_out[0] < 0, 1);
+      skip = 0;
+    }
     OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
     scalar_out[0] = scalar_out[0]*dc_quant;
     scalar_out[0] += predt[0];
@@ -539,6 +544,7 @@ static void od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
 # endif
   (*enc->state.opt_vtbl.idct_2d[ln])(c + (by << 2)*w + (bx << 2), w, preds, n);
 #endif
+  return skip;
 }
 #endif
 
@@ -731,7 +737,7 @@ static double od_compute_dist(od_coeff *x, od_coeff *y, int n) {
 }
 
 #if !defined(OD_DUMP_COEFFS)
-static void od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
+static int od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
  int pli, int bx, int by, int l, int xdec, int ydec, int rdo) {
   int od;
   int d;
@@ -754,13 +760,15 @@ static void od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
        ctx->d[0] + (by << (2 + l))*frame_width + (bx << (2 + l)),
        frame_width, xdec, ydec, d, od);
     }
-    od_block_encode(enc, ctx, d, pli, bx, by);
+    return od_block_encode(enc, ctx, d, pli, bx, by);
   }
   else {
     int f;
     int bo;
     int n;
     int tell;
+    int small_skip;
+    int large_skip;
     od_rollback_buffer buf1;
     od_rollback_buffer buf2;
     od_coeff morig[1024];
@@ -783,7 +791,7 @@ static void od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
         for (j = 0; j < n; j++) morig[n*i + j] = ctx->mc[bo + i*w + j];
       }
       od_encode_checkpoint(enc, &buf1);
-      od_block_encode(enc, ctx, d, pli, bx, by);
+      large_skip = od_block_encode(enc, ctx, d, pli, bx, by);
       rate_large = od_ec_enc_tell_frac(&enc->ec)-tell;
       od_encode_checkpoint(enc, &buf2);
       od_encode_rollback(enc, &buf1);
@@ -804,10 +812,11 @@ static void od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
     l--;
     bx <<= 1;
     by <<= 1;
-    od_encode_recursive(enc, ctx, pli, bx + 0, by + 0, l, xdec, ydec, rdo);
-    od_encode_recursive(enc, ctx, pli, bx + 1, by + 0, l, xdec, ydec, rdo);
-    od_encode_recursive(enc, ctx, pli, bx + 0, by + 1, l, xdec, ydec, rdo);
-    od_encode_recursive(enc, ctx, pli, bx + 1, by + 1, l, xdec, ydec, rdo);
+    small_skip = 1;
+    small_skip &= od_encode_recursive(enc, ctx, pli, bx + 0, by + 0, l, xdec, ydec, rdo);
+    small_skip &= od_encode_recursive(enc, ctx, pli, bx + 1, by + 0, l, xdec, ydec, rdo);
+    small_skip &= od_encode_recursive(enc, ctx, pli, bx + 0, by + 1, l, xdec, ydec, rdo);
+    small_skip &= od_encode_recursive(enc, ctx, pli, bx + 1, by + 1, l, xdec, ydec, rdo);
     od_apply_filter_vsplit(ctx->c + bo, w, 1, d, f);
     od_apply_filter_hsplit(ctx->c + bo, w, 1, d, f);
     if (rdo) {
@@ -819,11 +828,11 @@ static void od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
       for (i = 0; i < n; i++) {
         for (j = 0; j < n; j++) small[n*i + j] = ctx->c[bo + i*w + j];
       }
-      rate_small = 1+od_ec_enc_tell_frac(&enc->ec)-tell;
+      rate_small = 16+od_ec_enc_tell_frac(&enc->ec)-tell;
       dist_small = od_compute_dist(orig, small, n);
       dist_large = od_compute_dist(orig, large, n);
       lambda = .125*OD_PVQ_LAMBDA*enc->quantizer[pli]*enc->quantizer[pli];
-      if (dist_large + lambda*rate_large < dist_small + lambda*rate_small) {
+      if (small_skip || dist_large + lambda*rate_large < dist_small + lambda*rate_small) {
         od_encode_rollback(enc, &buf2);
         for (i = 0; i < n; i++) {
           for (j = 0; j < n; j++) ctx->c[bo + i*w + j] = large[n*i + j];
@@ -833,11 +842,13 @@ static void od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
             enc->state.bsize[((by<<l>>1)+i)*enc->state.bstride + (bx<<l>>1) + j] = d;
           }
         }
+        small_skip = large_skip;
       }
       for (i = 0; i < n; i++) {
         for (j = 0; j < n; j++) ctx->mc[bo + i*w + j] = morig[n*i + j];
       }
     }
+    return small_skip;
   }
 }
 #endif
