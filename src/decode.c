@@ -646,6 +646,7 @@ static void od_decode_residual(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
           }
         }
       }
+#if 0
       /*Apply the prefilter across the entire image.*/
       for (sby = 0; sby < nvsb; sby++) {
         for (sbx = 0; sbx < nhsb; sbx++) {
@@ -655,6 +656,10 @@ static void od_decode_residual(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
            (sby < nvsb - 1 ? OD_BOTTOM_EDGE : 0));
         }
       }
+#else
+      od_apply_prefilter_frame(state->mctmp[pli], w, nhsb, nvsb,
+       state->bsize, state->bstride, xdec);
+#endif
     }
   }
   for (pli = 0; pli < nplanes; pli++) {
@@ -690,6 +695,7 @@ static void od_decode_residual(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
     ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
     w = frame_width >> xdec;
     h = frame_height >> ydec;
+#if 0
     /*Apply the postfilter across the entire image.*/
     for (sby = 0; sby < nvsb; sby++) {
       for (sbx = 0; sbx < nhsb; sbx++) {
@@ -698,6 +704,10 @@ static void od_decode_residual(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
          (sbx < nhsb - 1 ? OD_RIGHT_EDGE : 0));
       }
     }
+#else
+    od_apply_postfilter_frame(state->ctmp[pli], w, nhsb, nvsb,
+     state->bsize, state->bstride, xdec);
+#endif
     {
       unsigned char *data;
       od_coeff *ctmp;
