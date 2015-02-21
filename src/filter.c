@@ -961,6 +961,31 @@ void od_apply_filter_cols2(od_coeff *c, int w, int bx, int by, int l,
   }
 }
 
+void od_apply_filter_cols_4x4(od_coeff *c, int w, int bx, int by, int l,
+ const unsigned char *bsize, int bstride, int dec, int inv) {
+  int i;
+  for (i = 0; i < 1 << l - dec; i++) {
+    int f;
+    int j;
+    od_coeff *b;
+    f = 0;
+    b = c + ((by << l + 2 - dec) - (2 << f))*w + (bx << l + 2 - dec) +
+     (i << 2);
+    for (j = 0; j < 4; j++) {
+      int k;
+      od_coeff t[4 << OD_NBSIZES];
+      for (k = 0; k < 4 << f; k++) {
+        t[k] = b[w*k + j];
+      }
+      (*(inv ? OD_POST_FILTER : OD_PRE_FILTER)[f])(t, t);
+      for (k = 0; k < 4 << f; k++) {
+        b[w*k + j] = t[k];
+      }
+    }
+  }
+}
+
+
 void od_apply_filter_rows2(od_coeff *c, int w, int bx, int by, int l,
  const unsigned char *bsize, int bstride, int dec, int inv) {
   int i;
@@ -998,6 +1023,25 @@ void od_apply_filter_rows2(od_coeff *c, int w, int bx, int by, int l,
     OD_ASSERT(0 <= f && f <= OD_NBSIZES);
     /*Remove if we ever support 32-point filters.*/
     f = OD_MINI(f, OD_NFILTER_SIZES - 1);
+    b = c + ((by << l + 2 - dec) + (i << 2))*w + (bx << l + 2 - dec) -
+     (2 << f);
+    for (j = 0; j < 4; j++) {
+      (*(inv ? OD_POST_FILTER : OD_PRE_FILTER)[f])(b, b);
+      b += w;
+    }
+  }
+}
+
+void od_apply_filter_rows_4x4(od_coeff *c, int w, int bx, int by, int l,
+ const unsigned char *bsize, int bstride, int dec, int inv) {
+  int i;
+  for (i = 0; i < 1 << l - dec; i++) {
+    unsigned char d;
+    unsigned char n;
+    int f;
+    int j;
+    od_coeff *b;
+    f = 0;
     b = c + ((by << l + 2 - dec) + (i << 2))*w + (bx << l + 2 - dec) -
      (2 << f);
     for (j = 0; j < 4; j++) {
@@ -1051,6 +1095,27 @@ void od_apply_prefilter_frame(od_coeff *c, int w, int nhsb, int nvsb,
   for (by = 0; by < nvsb; by++) {
     for (bx = 0; bx < nhsb; bx++) {
       od_apply_prefilter_block(c, w, bx, by, 3, bsize, bstride, dec);
+    }
+  }
+}
+
+void od_apply_prefilter_frame_sbonly(od_coeff *c, int w, int nhsb, int nvsb,
+ const unsigned char *bsize, int bstride, int dec) {
+  int bx;
+  int by;
+  /*Apply prefilter along superblock edges*/
+  for (by = 0; by < nvsb; by++) {
+    for (bx = 0; bx < nhsb; bx++) {
+      if (by < nvsb - 1) {
+        od_apply_filter_cols_4x4(c, w, bx, by + 1, 3, bsize, bstride, dec, 0);
+      }
+    }
+  }
+  for (by = 0; by < nvsb; by++) {
+    for (bx = 0; bx < nhsb; bx++) {
+      if (bx > 0) {
+        od_apply_filter_rows_4x4(c, w, bx, by, 3, bsize, bstride, dec, 0);
+      }
     }
   }
 }
