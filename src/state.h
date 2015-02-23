@@ -207,6 +207,7 @@ struct od_state{
 # endif
   od_coeff *ctmp[OD_NPLANES_MAX];
   od_coeff *dtmp[OD_NPLANES_MAX];
+  od_coeff *etmp[OD_NPLANES_MAX]; /* for block size decision */
   od_coeff *mctmp[OD_NPLANES_MAX];
   od_coeff *mdtmp[OD_NPLANES_MAX];
   od_coeff *ltmp[OD_NPLANES_MAX];
