@@ -1215,6 +1215,8 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   int frame_height;
   int nhsb;
   int nvsb;
+  int bits;
+  od_rollback_buffer rbuf;
   od_state *state = &enc->state;
   nplanes = state->info.nplanes;
   frame_width = state->frame_width;
@@ -1253,14 +1255,59 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
         for (x = 0; x < w; x++) {
           state->ctmp[pli][y*w + x] = (data[ystride*y + x] - 128) <<
            coeff_shift;
+          state->etmp[pli][y*w + x] = (data[ystride*y + x] - 128) <<
+           coeff_shift;
           if (!mbctx->is_keyframe) {
             state->mctmp[pli][y*w + x] = (mdata[ystride*y + x] - 128)
+             << coeff_shift;
+            state->metmp[pli][y*w + x] = (mdata[ystride*y + x] - 128)
              << coeff_shift;
           }
         }
       }
     }
   }
+  /* this prefilter is for block size decision only */
+  /*
+  for (pli = 0; pli < nplanes; pli++) {
+    od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
+     state->bsize, state->bstride, xdec);
+    if (!mbctx->is_keyframe) {
+      od_apply_prefilter_frame_sbonly(state->metmp[pli], w, nhsb, nvsb,
+       state->bsize, state->bstride, xdec);
+    }
+  }
+  */
+  /* block size is on luma only */
+  pli = 0;
+  for (sby = 0; sby < nvsb; sby++) {
+    for (sbx = 0; sbx < nhsb; sbx++) {
+      od_encode_checkpoint(enc, &rbuf);
+      bits = od_ec_enc_tell_frac(&enc->ec);
+      
+      mbctx->c = state->etmp[pli];
+      mbctx->d = state->dtmp;
+      mbctx->mc = state->metmp[pli];
+      mbctx->md = state->mdtmp[pli];
+      mbctx->l = state->lbuf[pli];
+      xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+      ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+      mbctx->nk = mbctx->k_total = mbctx->sum_ex_total_q8 = 0;
+      mbctx->ncount = mbctx->count_total_q8 = mbctx->count_ex_total_q8 = 0;
+      od_compute_dcts(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
+      if (!OD_DISABLE_HAAR_DC && mbctx->is_keyframe) {
+        od_quantize_haar_dc(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, 0,
+         0, sby > 0 && sbx < nhsb - 1);
+      }
+      od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
+      
+      bits = od_ec_enc_tell_frac(&enc->ec) - bits;
+      printf("%i\n", bits);
+      od_encode_rollback(enc, &rbuf);
+    }
+  }
+  
+  /* now do the final, real encode */
   for (pli = 0; pli < nplanes; pli++) {
     od_apply_prefilter_frame(state->ctmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);

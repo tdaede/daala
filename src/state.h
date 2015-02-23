@@ -210,6 +210,7 @@ struct od_state{
   od_coeff *etmp[OD_NPLANES_MAX]; /* for block size decision */
   od_coeff *mctmp[OD_NPLANES_MAX];
   od_coeff *mdtmp[OD_NPLANES_MAX];
+  od_coeff *metmp[OD_NPLANES_MAX]; /* for block size decision */
   od_coeff *ltmp[OD_NPLANES_MAX];
   od_coeff *lbuf[OD_NPLANES_MAX];
   unsigned char pvq_qm_q4[OD_NPLANES_MAX][OD_QM_SIZE];
