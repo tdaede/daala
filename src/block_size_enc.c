@@ -28,6 +28,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 
 #include "block_size.h"
 #include "block_size_enc.h"
+#include "state.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -312,6 +313,7 @@ static float od_psy_var8x8(od_superblock_stats *psy_stats,
   return OD_MAXF(psy/(count*count) - 1.f, 0);
 }
 
+#if 0
 /* This function decides how to split a 32x32 superblock based on a simple
  * activity masking model. The masking at any given point is assumed to be
  * proportional to the local variance. The decision is made using a simple
@@ -453,6 +455,72 @@ void od_split_superblock(od_block_size_comp *bs,
   }
 #endif
 }
+#else
+/* This function decides how to split a 32x32 superblock based on a simple
+ * activity masking model. The masking at any given point is assumed to be
+ * proportional to the local variance. The decision is made using a simple
+ * dynamic programming algorithm, working from 8x8 decisions up to 32x32.
+ * @param [scratch] bs          Scratch space for computation
+ * @param [in]      psy_img     Image on which to compute the psy model
+ *                               (should not be a residual)
+ * @param [in]      stride      Image stride
+ * @param [in]      pred        Prediction input (NULL means no prediction
+ *                               available)
+ * @param [in]      pred_stride Prediction input stride
+ * @param [out]     bsize       Decision for each 8x8 block in the image
+ *                               (see OD_BLOCK_* macros in block_size.h for
+ *                               possible values)
+ * @param [in]      q           Quality tuning parameter
+ */
+void od_split_superblock(od_block_size_comp *bs,
+ const unsigned char *psy_img, int stride,
+ const unsigned char *pred, int pred_stride, int bsize[4][4], int q) {
+  int i;
+  int j;
+  int x;
+  int y;
+  unsigned int a;
+  od_coeff c[32*32]; /* computed from psy_img */
+  unsigned char bs_tmp[4*4];
+  unsigned char bs_tmp2[4*4];
+  /* Tuning parameter for block decision (higher values results in smaller
+      blocks) */
+  double psy_lambda;
+  const unsigned char *x0;
+  double cg4;
+  double cg8;
+  x0 = psy_img - OD_BLOCK_OFFSET(stride);
+  /* The passed in q value is now a quantizer with the same scaling as
+     the coefficients. */
+  psy_lambda = q ? 6*sqrt((double)(1<<OD_COEFF_SHIFT)/q) : 6;
+  for (y = 0; y < 32; y++) {
+    for (x = 0; x < 32; x++) {
+      c[y*32+x] = (psy_img[y*stride+x]-128)<<OD_COEFF_SHIFT;
+    }
+  }
+  /* set to all 4x4 by default */
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      bs_tmp[j*4+i] = 0;
+    }
+  }
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      /* top-level split */
+      memcpy(bs_tmp2, bs_tmp, 16);
+      bs_tmp2[j*4+i] = 1;
+      /* determine rate of block size */
+      od_apply_prefilter_block(c, 32, 0, 0, 0, bs_tmp, 4, 0);
+      /* determine rate and distortion */
+    }
+  }
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      bsize[i][j] = bs_tmp[j*4+i];
+    }
+  }
+}
+#endif
 
 void od_block_size_encode(od_ec_enc *enc, od_adapt_ctx *adapt,
  const unsigned char *bsize, int stride) {

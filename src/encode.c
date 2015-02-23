@@ -1260,29 +1260,14 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
         }
       }
     }
-#if 0
-    /*Apply the prefilter across the entire image.*/
-    for (sby = 0; sby < nvsb; sby++) {
-      for (sbx = 0; sbx < nhsb; sbx++) {
-        od_apply_prefilter(state->ctmp[pli], w, sbx, sby, 3,
-         state->bsize, state->bstride, xdec, ydec,
-         (sbx > 0 ? OD_LEFT_EDGE : 0) |
-         (sby < nvsb - 1 ? OD_BOTTOM_EDGE : 0));
-        if (!mbctx->is_keyframe) {
-          od_apply_prefilter(state->mctmp[pli], w, sbx, sby, 3, state->bsize,
-           state->bstride, xdec, ydec, (sbx > 0 ? OD_LEFT_EDGE : 0) |
-           (sby < nvsb - 1 ? OD_BOTTOM_EDGE : 0));
-        }
-      }
-    }
-#else
+  }
+  for (pli = 0; pli < nplanes; pli++) {
     od_apply_prefilter_frame(state->ctmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
     if (!mbctx->is_keyframe) {
       od_apply_prefilter_frame(state->mctmp[pli], w, nhsb, nvsb,
        state->bsize, state->bstride, xdec);
     }
-#endif
   }
   for (sby = 0; sby < nvsb; sby++) {
     for (sbx = 0; sbx < nhsb; sbx++) {
