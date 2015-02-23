@@ -1260,7 +1260,8 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
         }
       }
     }
-    /*Apply the prefilter across the entire image.*/
+  }
+  for (pli = 0; pli < nplanes; pli++) {
     od_apply_prefilter_frame(state->ctmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
     if (!mbctx->is_keyframe) {
