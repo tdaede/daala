@@ -999,9 +999,6 @@ static void od_encode_block_sizes(daala_enc_ctx *enc) {
     }
     OD_LOG_PARTIAL((OD_LOG_GENERIC, OD_LOG_INFO, "\n"));
   }
-#if defined(OD_DUMP_IMAGES)
-  od_bsize_dump_img(&enc->state, nvsb, nhsb);
-#endif
 }
 
 static void od_encode_mvs(daala_enc_ctx *enc) {
@@ -1216,6 +1213,8 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   int nhsb;
   int nvsb;
   int bits;
+  int joinx;
+  int joiny;
   od_rollback_buffer rbuf;
   od_state *state = &enc->state;
   nplanes = state->info.nplanes;
@@ -1268,8 +1267,12 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
     }
   }
   /* this prefilter is for block size decision only */
-  /*
+  
   for (pli = 0; pli < nplanes; pli++) {
+    xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+    ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+    w = frame_width >> xdec;
+    h = frame_height >> ydec;
     od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
     if (!mbctx->is_keyframe) {
@@ -1277,38 +1280,47 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
        state->bsize, state->bstride, xdec);
     }
   }
-  */
+  
   /* block size is on luma only */
+  
   pli = 0;
   for (sby = 0; sby < nvsb; sby++) {
     for (sbx = 0; sbx < nhsb; sbx++) {
-      od_encode_checkpoint(enc, &rbuf);
-      bits = od_ec_enc_tell_frac(&enc->ec);
-      
-      mbctx->c = state->etmp[pli];
-      mbctx->d = state->dtmp;
-      mbctx->mc = state->metmp[pli];
-      mbctx->md = state->mdtmp[pli];
-      mbctx->l = state->lbuf[pli];
-      xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
-      ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
-      mbctx->nk = mbctx->k_total = mbctx->sum_ex_total_q8 = 0;
-      mbctx->ncount = mbctx->count_total_q8 = mbctx->count_ex_total_q8 = 0;
-      od_compute_dcts(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
-      if (!OD_DISABLE_HAAR_DC && mbctx->is_keyframe) {
-        od_quantize_haar_dc(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, 0,
-         0, sby > 0 && sbx < nhsb - 1);
+      for (joinx = 0; joinx < 4; joinx++) {
+        for (joiny = 0; joiny < 4; joiny++) {
+          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 1;
+          od_encode_checkpoint(enc, &rbuf);
+          bits = od_ec_enc_tell_frac(&enc->ec);
+          mbctx->c = state->etmp[pli];
+          mbctx->d = state->dtmp;
+          mbctx->mc = state->metmp[pli];
+          mbctx->md = state->mdtmp[pli];
+          mbctx->l = state->lbuf[pli];
+          xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+          ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+          mbctx->nk = mbctx->k_total = mbctx->sum_ex_total_q8 = 0;
+          mbctx->ncount = mbctx->count_total_q8 = mbctx->count_ex_total_q8 = 0;
+          od_compute_dcts(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
+          if (!OD_DISABLE_HAAR_DC && mbctx->is_keyframe) {
+            od_quantize_haar_dc(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, 0,
+             0, sby > 0 && sbx < nhsb - 1);
+          }
+          od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
+          
+          bits = od_ec_enc_tell_frac(&enc->ec) - bits;
+          printf("%i\n", bits);
+          od_encode_rollback(enc, &rbuf);
+        }
       }
-      od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
-      
-      bits = od_ec_enc_tell_frac(&enc->ec) - bits;
-      printf("%i\n", bits);
-      od_encode_rollback(enc, &rbuf);
     }
   }
   
   /* now do the final, real encode */
   for (pli = 0; pli < nplanes; pli++) {
+    xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+    ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+    w = frame_width >> xdec;
+    h = frame_height >> ydec;
     od_apply_prefilter_frame(state->ctmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
     if (!mbctx->is_keyframe) {
@@ -1495,6 +1507,8 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
   int frame_height;
   int pic_width;
   int pic_height;
+  int nhsb;
+  int nvsb;
   od_mb_enc_ctx mbctx;
 #if defined(OD_ACCOUNTING)
   od_acct_reset(&enc->acct);
@@ -1502,6 +1516,8 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
 #if defined(OD_EC_ACCOUNTING)
   od_ec_acct_reset(&enc->ec.acct);
 #endif
+  nhsb = enc->state.nhsb;
+  nvsb = enc->state.nvsb;
   if (enc == NULL || img == NULL) return OD_EFAULT;
   if (enc->packet_state == OD_PACKET_DONE) return OD_EINVAL;
   /*Check the input image dimensions to make sure they're compatible with the
@@ -1613,6 +1629,9 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
   }
   od_encode_block_sizes(enc);
   od_encode_residual(enc, &mbctx);
+#if defined(OD_DUMP_IMAGES)
+  od_bsize_dump_img(&enc->state, nvsb, nhsb);
+#endif
 #if defined(OD_DUMP_IMAGES) || defined(OD_DUMP_RECONS)
   /*Dump YUV*/
   od_state_dump_yuv(&enc->state, enc->state.io_imgs + OD_FRAME_REC, "out");

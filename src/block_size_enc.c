@@ -506,16 +506,6 @@ void od_split_superblock(od_block_size_comp *bs,
   }
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
-      /* top-level split */
-      memcpy(bs_tmp2, bs_tmp, 16);
-      bs_tmp2[j*4+i] = 1;
-      /* determine rate of block size */
-      od_apply_prefilter_block(c, 32, 0, 0, 0, bs_tmp, 4, 0);
-      /* determine rate and distortion */
-    }
-  }
-  for (i = 0; i < 4; i++) {
-    for (j = 0; j < 4; j++) {
       bsize[i][j] = bs_tmp[j*4+i];
     }
   }
