@@ -264,6 +264,10 @@ static int od_state_init_impl(od_state *state, const daala_info *info) {
     if (OD_UNLIKELY(!state->dtmp[pli])) {
       return OD_EFAULT;
     }
+    state->etmp[pli] = (od_coeff *)_ogg_malloc(w*h*sizeof(*state->etmp[pli]));
+    if (OD_UNLIKELY(!state->etmp[pli])) {
+      return OD_EFAULT;
+    }
     state->mctmp[pli] = (od_coeff *)_ogg_malloc(w*h*sizeof(*state->mctmp[pli]));
     if (OD_UNLIKELY(!state->mctmp[pli])) {
       return OD_EFAULT;
