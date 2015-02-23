@@ -276,6 +276,10 @@ static int od_state_init_impl(od_state *state, const daala_info *info) {
     if (OD_UNLIKELY(!state->mdtmp[pli])) {
       return OD_EFAULT;
     }
+    state->metmp[pli] = (od_coeff *)_ogg_malloc(w*h*sizeof(*state->metmp[pli]));
+    if (OD_UNLIKELY(!state->metmp[pli])) {
+      return OD_EFAULT;
+    }
     /*We predict chroma planes from the luma plane.  Since chroma can be
       subsampled, we cache subsampled versions of the luma plane in the
       frequency domain.  We can share buffers with the same subsampling.*/
@@ -348,10 +352,12 @@ void od_state_clear(od_state *state) {
   for (pli = 0; pli < state->info.nplanes; pli++) {
     _ogg_free(state->sb_dc_mem[pli]);
     _ogg_free(state->ltmp[pli]);
+    _ogg_free(state->etmp[pli]);
     _ogg_free(state->dtmp[pli]);
     _ogg_free(state->ctmp[pli]);
     _ogg_free(state->mctmp[pli]);
     _ogg_free(state->mdtmp[pli]);
+    _ogg_free(state->metmp[pli]);
   }
   _ogg_free(state->bsize);
 }
