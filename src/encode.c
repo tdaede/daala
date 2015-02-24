@@ -1273,7 +1273,7 @@ state->bsize, state->bstride, 0);
   distortion = distortion/32/32/(16*16);
   /* printf("%i %f %f\n", bits, distortion, bits*0.01 + distortion); */
   od_encode_rollback(enc, &rbuf);
-  return bits*0.001 + distortion;
+  return bits*0.02 + distortion;
 }
 
 static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
@@ -1293,6 +1293,7 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   int nvsb;
   int joinx;
   int joiny;
+  unsigned char previous_bsize[4*4];
   double rd;
   double best_rd;
   od_state *state = &enc->state;
@@ -1369,10 +1370,34 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
         for (joiny = 0; joiny < 4; joiny++) {
           state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 1;
           rd = od_rd_encode(enc,mbctx,sbx,sby);
-          if (rd < best_rd) {
+          if ((rd-5) < best_rd) {
             best_rd = rd;
           } else {
             state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 0;
+          }
+        }
+      }
+      for (joinx = 0; joinx < 4; joinx += 2) {
+        for (joiny = 0; joiny < 4; joiny += 2) {
+          /*save bsize */
+          for (y = 0; y < 4; y++) {
+            for (x = 0; x < 4; x++) {
+              previous_bsize[y*4+x] = state->bsize[(sby*4+joiny+y)*state->bstride + sbx*4+joinx+x];
+            }
+          }
+          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
+          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
+                              state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
+                                        state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
+          rd = od_rd_encode(enc,mbctx,sbx,sby);
+          if ((rd-100) < best_rd) {
+            best_rd = rd;
+          } else {
+            for (y = 0; y < 4; y++) {
+              for (x = 0; x < 4; x++) {
+                state->bsize[(sby*4+joiny+y)*state->bstride + sbx*4+joinx+x] = previous_bsize[y*4+x];
+              }
+            }
           }
         }
       }
