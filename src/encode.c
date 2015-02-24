@@ -1377,6 +1377,7 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
           }
         }
       }
+      /* 16 x 16 */
       for (joinx = 0; joinx < 4; joinx += 2) {
         for (joiny = 0; joiny < 4; joiny += 2) {
           /*save bsize */
@@ -1386,11 +1387,11 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
             }
           }
           state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
-          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
-                              state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
-                                        state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
+          state->bsize[(sby*4+joiny+1)*state->bstride + sbx*4+joinx] = 2;
+          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx+1] = 2;
+          state->bsize[(sby*4+joiny+1)*state->bstride + sbx*4+joinx+1] = 2;
           rd = od_rd_encode(enc,mbctx,sbx,sby);
-          if ((rd-100) < best_rd) {
+          if ((rd-3) < best_rd) {
             best_rd = rd;
           } else {
             for (y = 0; y < 4; y++) {
@@ -1398,6 +1399,24 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
                 state->bsize[(sby*4+joiny+y)*state->bstride + sbx*4+joinx+x] = previous_bsize[y*4+x];
               }
             }
+          }
+        }
+      }
+      /* 32 x 32 */
+      /*save bsize */
+      for (y = 0; y < 4; y++) {
+        for (x = 0; x < 4; x++) {
+          previous_bsize[y*4+x] = state->bsize[(sby*4+y)*state->bstride + sbx*4+x];
+          state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = 3;
+        }
+      }
+      rd = od_rd_encode(enc,mbctx,sbx,sby);
+      if ((rd-3) < best_rd) {
+        best_rd = rd;
+      } else {
+        for (y = 0; y < 4; y++) {
+          for (x = 0; x < 4; x++) {
+            state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = previous_bsize[y*4+x];
           }
         }
       }
