@@ -60,6 +60,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # define OD_ENC_ACCT_UPDATE(enc, cat, value)
 #endif
 
+
+/* This advanced macro computes the product of x by itself, otherwise known as
+   raising to the power of two, squaring, or inverse square-root. It can be
+   used to square integers, but not circles. */
+#define OD_SQUARE(x) ((int)(x)*(int)(x))
+
 static int od_quantizer_from_quality(int quality) {
   return quality == 0 ? 0 :
    (quality << OD_COEFF_SHIFT >> OD_QUALITY_SHIFT) +
@@ -1197,6 +1203,79 @@ static void od_encode_mvs(daala_enc_ctx *enc) {
   OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
 }
 
+static double od_rd_encode(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx, int sbx, int sby) {
+  double distortion;
+  od_rollback_buffer rbuf;
+  int x;
+  int y;
+  int frame_width;
+  int frame_height;
+  int h;
+  int w;
+  int xdec = 0;
+  int ydec = 0;
+  int nhsb;
+  int nvsb;
+  int pli = 0;
+  int bits;
+  od_state *state = &enc->state;
+  frame_width = state->frame_width;
+  frame_height = state->frame_height;
+  w = frame_width >> xdec;
+  h = frame_height >> ydec;
+  nhsb = state->nhsb;
+  nvsb = state->nvsb;
+  /* hacky reset of etmp */
+  {
+    unsigned char *data;
+    int ystride;
+    int coeff_shift;
+    coeff_shift = enc->quantizer[pli] == 0 ? 0 : OD_COEFF_SHIFT;
+    data = state->io_imgs[OD_FRAME_INPUT].planes[pli].data;
+    ystride = state->io_imgs[OD_FRAME_INPUT].planes[pli].ystride;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        state->etmp[pli][y*w + x] = (data[ystride*y + x] - 128) <<
+         coeff_shift;
+      }
+    }
+  }
+  od_apply_prefilter_block(state->etmp[0], w, sbx, sby, 3,
+state->bsize, state->bstride, 0);
+  
+  od_encode_checkpoint(enc, &rbuf);
+  bits = od_ec_enc_tell_frac(&enc->ec);
+  
+  mbctx->c = state->etmp[pli];
+  mbctx->d = state->dtmp;
+  mbctx->mc = state->metmp[pli];
+  mbctx->md = state->mdtmp[pli];
+  mbctx->l = state->lbuf[pli];
+  xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+  ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+  mbctx->nk = mbctx->k_total = mbctx->sum_ex_total_q8 = 0;
+  mbctx->ncount = mbctx->count_total_q8 = mbctx->count_ex_total_q8 = 0;
+  od_compute_dcts(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
+  if (!OD_DISABLE_HAAR_DC && mbctx->is_keyframe) {
+    od_quantize_haar_dc(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, 0,
+     0, sby > 0 && sbx < nhsb - 1);
+  }
+  od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
+  od_apply_postfilter_block(state->dtmp[0], w, sbx, sby, 3,
+state->bsize, state->bstride, 0);
+  distortion = 0;
+  for (y = sby*32; y < (sby+1)*32; y++) {
+    for (x = sbx*32; x < (sbx+1)*32; x++) {
+      distortion += OD_SQUARE(state->etmp[0][y*w+x] - state->ctmp[0][y*w+x]);
+    }
+  }
+  bits = od_ec_enc_tell_frac(&enc->ec) - bits;
+  distortion = distortion/32/32/(16*16);
+  /* printf("%i %f %f\n", bits, distortion, bits*0.01 + distortion); */
+  od_encode_rollback(enc, &rbuf);
+  return bits*0.001 + distortion;
+}
+
 static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   int xdec;
   int ydec;
@@ -1212,10 +1291,10 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   int frame_height;
   int nhsb;
   int nvsb;
-  int bits;
   int joinx;
   int joiny;
-  od_rollback_buffer rbuf;
+  double rd;
+  double best_rd;
   od_state *state = &enc->state;
   nplanes = state->info.nplanes;
   frame_width = state->frame_width;
@@ -1268,48 +1347,33 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   }
   /* this prefilter is for block size decision only */
   
-  for (pli = 0; pli < nplanes; pli++) {
-    xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
-    ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
-    w = frame_width >> xdec;
-    h = frame_height >> ydec;
-    od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
+  pli = 0;
+  xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+  ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+  w = frame_width >> xdec;
+  h = frame_height >> ydec;
+  od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
+   state->bsize, state->bstride, xdec);
+  if (!mbctx->is_keyframe) {
+    od_apply_prefilter_frame_sbonly(state->metmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
-    if (!mbctx->is_keyframe) {
-      od_apply_prefilter_frame_sbonly(state->metmp[pli], w, nhsb, nvsb,
-       state->bsize, state->bstride, xdec);
-    }
   }
   
-  /* block size is on luma only */
+  /* block size decision is on luma only */
   
   pli = 0;
   for (sby = 0; sby < nvsb; sby++) {
     for (sbx = 0; sbx < nhsb; sbx++) {
+      best_rd = od_rd_encode(enc,mbctx,sbx,sby);
       for (joinx = 0; joinx < 4; joinx++) {
         for (joiny = 0; joiny < 4; joiny++) {
           state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 1;
-          od_encode_checkpoint(enc, &rbuf);
-          bits = od_ec_enc_tell_frac(&enc->ec);
-          mbctx->c = state->etmp[pli];
-          mbctx->d = state->dtmp;
-          mbctx->mc = state->metmp[pli];
-          mbctx->md = state->mdtmp[pli];
-          mbctx->l = state->lbuf[pli];
-          xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
-          ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
-          mbctx->nk = mbctx->k_total = mbctx->sum_ex_total_q8 = 0;
-          mbctx->ncount = mbctx->count_total_q8 = mbctx->count_ex_total_q8 = 0;
-          od_compute_dcts(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
-          if (!OD_DISABLE_HAAR_DC && mbctx->is_keyframe) {
-            od_quantize_haar_dc(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, 0,
-             0, sby > 0 && sbx < nhsb - 1);
+          rd = od_rd_encode(enc,mbctx,sbx,sby);
+          if (rd < best_rd) {
+            best_rd = rd;
+          } else {
+            state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 0;
           }
-          od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
-          
-          bits = od_ec_enc_tell_frac(&enc->ec) - bits;
-          printf("%i\n", bits);
-          od_encode_rollback(enc, &rbuf);
         }
       }
     }
