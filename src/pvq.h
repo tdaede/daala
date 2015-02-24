@@ -27,6 +27,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # include "internal.h"
 # include "filter.h"
 
+extern const double *od_basis_mag[];
+
 # define PVQ_MAX_PARTITIONS (1 + 3*(OD_NBSIZES-1))
 
 # define OD_NOREF_ADAPT_SPEED (4)

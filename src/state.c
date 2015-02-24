@@ -39,7 +39,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 /* These values are based on manual tuning to optimize PSNR-HVS, while also
    attempting to keep a good visual balance between the relative resolution
    of luma, and chroma. */
-const od_coeff OD_DC_RES[3] = {11, 16, 11};
+const od_coeff OD_DC_RES[3] = {16, 23, 16};
 
 static void *od_aligned_malloc(size_t _sz,size_t _align) {
   unsigned char *p;

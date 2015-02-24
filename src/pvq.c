@@ -36,6 +36,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 
 #define EPSILON 1e-30
 
+const double mag4[] = {0.774125, 0.877780, 0.925934, 0.951682};
+const double mag8[] = {
+  0.836776, 0.844316, 0.917307, 0.924980,
+  0.948172, 0.936507, 0.968913, 0.967917
+};
+const double mag16[] = {
+  0.921737, 0.868401, 0.925373, 0.958481,
+  0.959319, 0.954073, 0.962690, 0.975782,
+  0.974046, 0.967441, 0.968526, 0.979529,
+  0.985361, 0.982844, 0.983440, 0.993243
+};
+const double mag32[] = {
+  0.961865, 0.926229, 0.935907, 0.950836,
+  0.962498, 0.972889, 0.979745, 0.979867,
+  0.980251, 0.978192, 0.976537, 0.978706,
+  0.981138, 0.984588, 0.987381, 0.987904,
+  0.987045, 0.985931, 0.983917, 0.983186,
+  0.983692, 0.987112, 0.989474, 0.992827,
+  0.992394, 0.991791, 0.991204, 0.990484,
+  0.992098, 0.994740, 0.995867, 1.000695
+};
+const double *od_basis_mag[] = {mag4, mag8, mag16, mag32};
+
 /* These are the PVQ equivalent of quantization matrices, except that
    the values are per-band. */
 
@@ -44,8 +67,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 static const unsigned char od_flat_qm_q4[OD_QM_SIZE] = {
   16, 16,
   16, 16, 16, 16,
-  15, 15, 15, 15, 15, 15,
-  13, 13, 13, 13, 13, 13, 13, 13
+  16, 16, 16, 16, 16, 16,
+  16, 16, 16, 16, 16, 16, 16, 16
 };
 
 const od_qm_entry OD_DEFAULT_QMS[][OD_NPLANES_MAX] = {

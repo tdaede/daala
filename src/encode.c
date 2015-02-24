@@ -466,6 +466,20 @@ static int od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
      c + (by << 2)*w + (bx << 2), w);
     (*enc->state.opt_vtbl.fdct_2d[ln])(md + (by << 2)*w + (bx << 2), w,
      mc + (by << 2)*w + (bx << 2), w);
+    if (1) {
+      int i;
+      int j;
+      int bo;
+      bo = (by << 2)*w + (bx << 2);
+      for (i = 0; i < 4 << ln; i++) {
+        for (j = 0; j < 4 << ln; j++) {
+          double mag;
+          mag = od_basis_mag[ln][i]*od_basis_mag[ln][j];
+          d[bo + i*w + j] = (od_coeff)floor(.5 + d[bo + i*w + j]*mag);
+          md[bo + i*w + j] = (od_coeff)floor(.5 + md[bo + i*w + j]*mag);
+        }
+      }
+    }
   }
   od_encode_compute_pred(enc, ctx, pred, ln, pli, bx, by);
   if (ctx->is_keyframe && pli == 0) {
@@ -529,6 +543,19 @@ static int od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
    lossless);
   /*Apply the inverse transform.*/
 #if !defined(OD_OUTPUT_PRED)
+  if (1) {
+    int i;
+    int j;
+    int bo;
+    bo = (by << 2)*w + (bx << 2);
+    for (i = 0; i < 4 << ln; i++) {
+      for (j = 0; j < 4 << ln; j++) {
+        double mag;
+        mag = od_basis_mag[ln][i]*od_basis_mag[ln][j];
+        d[bo + i*w + j] = (od_coeff)floor(.5 + d[bo + i*w + j]/mag);
+      }
+    }
+  }
   (*enc->state.opt_vtbl.idct_2d[ln])(c + (by << 2)*w + (bx << 2), w,
    d + (by << 2)*w + (bx << 2), w);
 #else
@@ -567,6 +594,17 @@ static void od_compute_dcts(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int pli,
     d -= xdec;
     bo = (by << (OD_LOG_BSIZE0 + d))*w + (bx << (OD_LOG_BSIZE0 + d));
     (*enc->state.opt_vtbl.fdct_2d[d])(c + bo, w, ctx->c + bo, w);
+    if (1) {
+      int i;
+      int j;
+      for (i = 0; i < 4 << d; i++) {
+        for (j = 0; j < 4 << d; j++) {
+          double mag;
+          mag = od_basis_mag[d][i]*od_basis_mag[d][j];
+          c[bo + i*w + j] = (od_coeff)floor(.5 + c[bo + i*w + j]*mag);
+        }
+      }
+    }
 #if defined(OD_DUMP_COEFFS)
     {
       int i;
