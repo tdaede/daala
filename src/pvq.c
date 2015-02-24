@@ -67,8 +67,8 @@ const double *od_basis_mag[] = {mag4, mag8, mag16, mag32};
 static const unsigned char od_flat_qm_q4[OD_QM_SIZE] = {
   16, 16,
   16, 16, 16, 16,
-  16, 16, 16, 16, 16, 16,
-  16, 16, 16, 16, 16, 16, 16, 16
+  15, 15, 15, 15, 15, 15,
+  13, 13, 13, 13, 13, 13, 13, 13
 };
 
 const od_qm_entry OD_DEFAULT_QMS[][OD_NPLANES_MAX] = {
