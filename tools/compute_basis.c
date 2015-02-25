@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
   n = 4 << ln;
   left = OD_FILT_SIZE[OD_MINI(OD_NBSIZES - 1, ln + 1)];
   right = OD_FILT_SIZE[ln];
-  if (0) {
+  if (1) {
   for (i = 0; i < n; i++) {
     OD_CLEAR(x0, SIZE);
     OD_CLEAR(y0, SIZE);
@@ -90,7 +90,6 @@ int main(int argc, char **argv) {
           od_coeff *y1;
           y1 = y + (k - n)*stride;
           OD_POST_FILTER[left](y1 - (2 << left), y1 - (2 << left));
-          OD_POST_FILTER[right](y1 + n - (2 << right), y1 + n - (2 << right));
         }
         for (k = 0; k < 3*n; k++) {
           od_coeff *y1;
@@ -100,10 +99,23 @@ int main(int argc, char **argv) {
           for (m = 0; m < 4 << left; m++) tmp[m] = y1[(m - (2 << left))*stride];
           OD_POST_FILTER[left](tmp, tmp);
           for (m = 0; m < 4 << left; m++) y1[(m - (2 << left))*stride] = tmp[m];
+        }
+
+        for (k = 0; k < 3*n; k++) {
+          od_coeff *y1;
+          y1 = y + (k - n)*stride;
+          OD_POST_FILTER[right](y1 + n - (2 << right), y1 + n - (2 << right));
+        }
+        for (k = 0; k < 3*n; k++) {
+          od_coeff *y1;
+          od_coeff tmp[MAXN];
+          int m;
+          y1 = y + (k - n);
           for (m = 0; m < 4 << right; m++) tmp[m] = y1[(m + n - (2 << right))*stride];
           OD_POST_FILTER[right](tmp, tmp);
           for (m = 0; m < 4 << right; m++) y1[(m + n - (2 << right))*stride] = tmp[m];
         }
+
         if (magnitude) {
           int m;
           int k;
