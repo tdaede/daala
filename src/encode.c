@@ -1218,6 +1218,7 @@ static double od_rd_encode(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx, int sbx, in
   int nvsb;
   int pli = 0;
   int bits;
+  double lambda;
   od_state *state = &enc->state;
   frame_width = state->frame_width;
   frame_height = state->frame_height;
@@ -1225,6 +1226,7 @@ static double od_rd_encode(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx, int sbx, in
   h = frame_height >> ydec;
   nhsb = state->nhsb;
   nvsb = state->nvsb;
+  lambda = 0.00001*pow(enc->quantizer[0],1.6);
   /* hacky reset of etmp */
   {
     unsigned char *data;
@@ -1273,7 +1275,7 @@ state->bsize, state->bstride, 0);
   distortion = distortion/32/32/(16*16);
   /* printf("%i %f %f\n", bits, distortion, bits*0.01 + distortion); */
   od_encode_rollback(enc, &rbuf);
-  return bits*0.02 + distortion;
+  return bits*lambda + distortion;
 }
 
 static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
