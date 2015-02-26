@@ -1486,10 +1486,12 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx,
         ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
         mbctx->nk = mbctx->k_total = mbctx->sum_ex_total_q8 = 0;
         mbctx->ncount = mbctx->count_total_q8 = mbctx->count_ex_total_q8 = 0;
-        for (i = 0; i < 32; i++) {
-          int w;
-          w = enc->state.frame_width;
-          for (j = 0; j < 32; j++) orig[i*32 + j] = mbctx->c[(32*sby+i)*w + 32*sbx + j];
+        if (rdo_only) {
+          for (i = 0; i < 32; i++) {
+            int w;
+            w = enc->state.frame_width;
+            for (j = 0; j < 32; j++) orig[i*32 + j] = mbctx->c[(32*sby+i)*w + 32*sbx + j];
+          }
         }
         if (!OD_DISABLE_HAAR_DC && mbctx->is_keyframe) {
           if (rdo_only) od_encode_checkpoint(enc, &buf);
