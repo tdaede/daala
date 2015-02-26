@@ -461,7 +461,7 @@ static int od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
   md = ctx->md;
   mc = ctx->mc;
   /* Apply forward transform. */
-  if (dc) {
+  if (dc || !ctx->is_keyframe) {
     (*enc->state.opt_vtbl.fdct_2d[ln])(d + (by << 2)*w + (bx << 2), w,
      c + (by << 2)*w + (bx << 2), w);
     if (1) {
@@ -492,7 +492,6 @@ static int od_block_encode(daala_enc_ctx *enc, od_mb_enc_ctx *ctx, int ln,
           double mag;
           mag = od_basis_mag[ln][i]*od_basis_mag[ln][j];
           if (i==0&&j==0) mag = 1;
-          d[bo + i*w + j] = (od_coeff)floor(.5 + d[bo + i*w + j]*mag);
           md[bo + i*w + j] = (od_coeff)floor(.5 + md[bo + i*w + j]*mag);
         }
       }
@@ -1499,7 +1498,7 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx,
            0, sby > 0 && sbx < nhsb - 1, rdo_only ? &dc : NULL, rdo_only ? &dc_rate : NULL);
           if (rdo_only) od_encode_rollback(enc, &buf);
         }
-        if (rdo_only) {
+        if (rdo_only && mbctx->is_keyframe) {
           for (i = 0; i < 32; i++) {
             int w;
             w = enc->state.frame_width;
@@ -1507,9 +1506,13 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx,
           }
         }
 #if !defined(OD_DUMP_COEFFS)
+        if (mbctx->is_keyframe) {
         dc = dc0;
         dc_rate = dc_rate0;
-        od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, rdo_only, &dc, &dc_rate);
+        } else {
+          dc = dc_rate = NULL;
+        }
+        od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec, rdo_only, mbctx->is_keyframe ? &dc : NULL, mbctx->is_keyframe ? &dc_rate : NULL);
 #endif
       }
         OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_PLANE, OD_ACCT_PLANE_UNKNOWN);
