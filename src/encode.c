@@ -701,11 +701,6 @@ static void od_quantize_haar_dc(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
     od_coeff sb_dc_pred;
     od_coeff sb_dc_curr;
     od_coeff *sb_dc_mem;
-    /* Giving a small resolution boost to 32x32 because its reduced overlap
-       means a larger synthesis magnitude. */
-    if (enc->quantizer[pli] != 0 && d - xdec == 3) {
-      dc_quant = OD_MAXI(1, enc->quantizer[pli]*12*OD_DC_RES[pli] >> 8);
-    }
     nhsb = enc->state.nhsb;
     sb_dc_mem = enc->state.sb_dc_mem[pli];
     l2 = l - xdec + 2;
@@ -742,6 +737,12 @@ static void od_quantize_haar_dc(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
     od_coeff x[4];
     int l2;
     int tell;
+    int ac_quant[2];
+    if (enc->quantizer[pli] == 0) ac_quant[0] = ac_quant[1] = 1;
+    else {
+      ac_quant[0] = dc_quant*OD_DC_QM[l - xdec - 1][0] >> 4;
+      ac_quant[1] = dc_quant*OD_DC_QM[l - xdec - 1][1] >> 4;
+    }
     l--;
     bx <<= 1;
     by <<= 1;
@@ -755,11 +756,11 @@ static void od_quantize_haar_dc(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
     tell = od_ec_enc_tell_frac(&enc->ec);
     for (i = 1; i < 4; i++) {
       int quant;
-      quant = OD_DIV_R0(x[i], dc_quant);
+      quant = OD_DIV_R0(x[i], ac_quant[i == 3]);
       generic_encode(&enc->ec, &enc->state.adapt.model_dc[pli], abs(quant), -1,
        &enc->state.adapt.ex_dc[pli][l][i-1], 2);
       if (quant) od_ec_enc_bits(&enc->ec, quant < 0, 1);
-      x[i] = quant*dc_quant;
+      x[i] = quant*ac_quant[i == 3];
     }
     if (dc_rate) {*(*dc_rate)++ = od_ec_enc_tell_frac(&enc->ec) - tell;}
     /* Gives best results for subset1, more conservative than the

@@ -41,6 +41,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
    of luma, and chroma. */
 const od_coeff OD_DC_RES[3] = {17, 24, 17};
 
+const od_coeff OD_DC_QM[OD_NBSIZES - 1][2] = {
+  {25, 30},
+  {21, 27},
+  {17, 19}
+};
+
 static void *od_aligned_malloc(size_t _sz,size_t _align) {
   unsigned char *p;
   if (_align - 1 > UCHAR_MAX || (_align&_align-1) || _sz > ~(size_t)0-_align)

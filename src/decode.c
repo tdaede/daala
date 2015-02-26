@@ -334,9 +334,6 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
     od_coeff sb_dc_pred;
     od_coeff sb_dc_curr;
     od_coeff *sb_dc_mem;
-    if (dec->quantizer[pli] != 0 && d - xdec == 3) {
-      dc_quant = OD_MAXI(1, dec->quantizer[pli]*12*OD_DC_RES[pli] >> 8);
-    }
     nhsb = dec->state.nhsb;
     sb_dc_mem = dec->state.sb_dc_mem[pli];
     l2 = l - xdec + 2;
@@ -371,6 +368,12 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
   if (l > d) {
     od_coeff x[4];
     int l2;
+    int ac_quant[2];
+    if (dec->quantizer[pli] == 0) ac_quant[0] = ac_quant[1] = 1;
+    else {
+      ac_quant[0] = dc_quant*OD_DC_QM[l - xdec - 1][0] >> 4;
+      ac_quant[1] = dc_quant*OD_DC_QM[l - xdec - 1][1] >> 4;
+    }
     l--;
     bx <<= 1;
     by <<= 1;
@@ -386,7 +389,7 @@ static void od_decode_haar_dc(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int pli,
       if (quant) {
         if (od_ec_dec_bits(&dec->ec, 1)) quant = -quant;
       }
-      x[i] = quant*dc_quant;
+      x[i] = quant*ac_quant[i == 3];
     }
     /* Gives best results for subset1, more conservative than the
        theoretical /4 of a pure gradient. */
