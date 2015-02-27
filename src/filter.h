@@ -70,9 +70,9 @@ void od_post_filter32(od_coeff _x[32], const od_coeff _y[32]);
 
 const int OD_FILT_SIZE[OD_NBSIZES];
 void od_apply_filter_sb_rows(od_coeff *c, int stride, int nhsb, int nvsb,
- int xdec, int ydec, int inv, int ln);
+ int xdec, int ydec, int inv, int ln, int final);
 void od_apply_filter_sb_cols(od_coeff *c, int stride, int nhsb, int nvsb,
- int xdec, int ydec, int inv, int ln);
+ int xdec, int ydec, int inv, int ln, int final);
 void od_apply_filter_hsplit(od_coeff *c0, int stride, int inv, int ln, int f);
 void od_apply_filter_vsplit(od_coeff *c0, int stride, int inv, int ln, int f);
 

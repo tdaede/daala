@@ -123,6 +123,7 @@ const od_filter_func OD_POST_FILTER[OD_NBSIZES] = {
 };
 
 const int OD_FILT_SIZE[OD_NBSIZES] = {0, 1, 1, 1};
+const int OD_FILT_SIZE_FINAL[OD_NBSIZES] = {0, 1, 2, 3};
 
 /*Filter parameters for the pre/post filters.
   When changing these the intra-predictors in
@@ -879,11 +880,15 @@ void od_apply_filter_vsplit(od_coeff *c0, int stride, int inv, int ln, int f) {
 }
 
 void od_apply_filter_sb_rows(od_coeff *c, int stride, int nhsb, int nvsb,
- int xdec, int ydec, int inv, int ln) {
+ int xdec, int ydec, int inv, int ln, int final) {
   int sby;
   int j;
   int f;
-  f = OD_MAXI(0, OD_FILT_SIZE[ln] - xdec);
+  if (final) {
+    f = OD_MAXI(0, OD_FILT_SIZE_FINAL[ln] - xdec);
+  } else {
+    f = OD_MAXI(0, OD_FILT_SIZE[ln] - xdec);
+  }
   c += ((32 >> ydec) - (2 << f))*stride;
   for (sby = 1; sby < nvsb; sby++) {
     for (j = 0; j < nhsb << 5 >> xdec; j++) {
@@ -898,11 +903,15 @@ void od_apply_filter_sb_rows(od_coeff *c, int stride, int nhsb, int nvsb,
 }
 
 void od_apply_filter_sb_cols(od_coeff *c, int stride, int nhsb, int nvsb,
- int xdec, int ydec, int inv, int ln) {
+ int xdec, int ydec, int inv, int ln, int final) {
   int sbx;
   int i;
   int f;
-  f = OD_MAXI(0, OD_FILT_SIZE[ln] - xdec);
+  if (final) {
+    f = OD_MAXI(0, OD_FILT_SIZE_FINAL[ln] - xdec);
+  } else {
+    f = OD_MAXI(0, OD_FILT_SIZE[ln] - xdec);
+  }
   c += ((32 >> xdec) - (2 << f));
   for (sbx = 1; sbx < nhsb; sbx++) {
     for (i = 0; i < nvsb << 5 >> ydec; i++) {

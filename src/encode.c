@@ -1383,11 +1383,11 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx,
       }
     }
 #else
-    od_apply_filter_sb_rows(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3);
-    od_apply_filter_sb_cols(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3);
+    od_apply_filter_sb_rows(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3, !rdo_only);
+    od_apply_filter_sb_cols(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3, !rdo_only);
     if (!mbctx->is_keyframe) {
-      od_apply_filter_sb_rows(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3);
-      od_apply_filter_sb_cols(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3);
+      od_apply_filter_sb_rows(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3, !rdo_only);
+      od_apply_filter_sb_cols(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3, !rdo_only);
     }
 #endif
   }
@@ -1455,8 +1455,8 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx,
       }
     }
 #else
-    od_apply_filter_sb_cols(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3);
-    od_apply_filter_sb_rows(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3);
+    od_apply_filter_sb_cols(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3, !rdo_only);
+    od_apply_filter_sb_rows(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3, !rdo_only);
 #endif
     if (!rdo_only) {
       unsigned char *data;

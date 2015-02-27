@@ -671,8 +671,8 @@ static void od_decode_residual(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
       }
 #else
       if (!mbctx->is_keyframe) {
-        od_apply_filter_sb_rows(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3);
-        od_apply_filter_sb_cols(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3);
+        od_apply_filter_sb_rows(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3, 1);
+        od_apply_filter_sb_cols(state->mctmp[pli], w, nhsb, nvsb, xdec, ydec, 0, 3, 1);
       }
 #endif
     }
@@ -720,8 +720,8 @@ static void od_decode_residual(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
       }
     }
 #else
-    od_apply_filter_sb_cols(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3);
-    od_apply_filter_sb_rows(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3);
+    od_apply_filter_sb_cols(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3, 1);
+    od_apply_filter_sb_rows(state->ctmp[pli], w, nhsb, nvsb, xdec, ydec, 1, 3, 1);
 #endif
     {
       unsigned char *data;
