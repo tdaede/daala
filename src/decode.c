@@ -247,6 +247,7 @@ static void od_block_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
           double mag;
           mag = od_basis_mag[ln][i]*od_basis_mag[ln][j];
           if (i==0&&j==0) mag = 1;
+          else mag /= 0.0625*OD_QM8[(i << 1 >> ln)*8 + (j << 1 >> ln)];
           md[bo + i*w + j] = (od_coeff)floor(.5 + md[bo + i*w + j]*mag);
         }
       }
@@ -296,6 +297,7 @@ static void od_block_decode(daala_dec_ctx *dec, od_mb_dec_ctx *ctx, int ln,
         double mag;
         mag = od_basis_mag[ln][i]*od_basis_mag[ln][j];
         if (i==0&&j==0) mag = 1;
+        else mag /= 0.0625*OD_QM8[(i << 1 >> ln)*8 + (j << 1 >> ln)];
         d[bo + i*w + j] = (od_coeff)floor(.5 + d[bo + i*w + j]/mag);
       }
     }

@@ -28,6 +28,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 # include "filter.h"
 
 extern const double *od_basis_mag[];
+extern const int OD_QM8[];
 
 # define PVQ_MAX_PARTITIONS (1 + 3*(OD_NBSIZES-1))
 
