@@ -1767,6 +1767,8 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
   int frame_height;
   int pic_width;
   int pic_height;
+  int bx;
+  int by;
   od_mb_enc_ctx mbctx;
 #if defined(OD_ACCOUNTING)
   od_acct_reset(&enc->acct);
@@ -1878,8 +1880,14 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
   if (!mbctx.is_keyframe) {
     od_predict_frame(enc);
     od_encode_mvs(enc);
-#if 1
+#if 0
     od_split_superblocks_rdo(enc, &mbctx);
+#else
+    for (by = 0; by < enc->state.nvsb*4; by++) {
+      for (bx = 0; bx < enc->state.nhsb*4; bx++) {
+        enc->state.bsize[by*enc->state.bstride + bx] = 3;
+      }
+    }
     /*od_split_superblocks(enc, 0);*/
 #endif
   }
