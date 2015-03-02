@@ -41,7 +41,7 @@ extern const int OD_QM8[];
    optimization for hybrid video coding." Circuits and Systems for Video
    Technology, IEEE Transactions on 19.2 (2009): 193-205.
    */
-# define OD_PVQ_LAMBDA (.136)
+# define OD_PVQ_LAMBDA (.106)
 
 #define OD_PVQ_SKIP_ZERO 1
 #define OD_PVQ_SKIP_COPY 2

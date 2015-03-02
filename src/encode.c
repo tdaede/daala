@@ -794,13 +794,46 @@ static void od_quantize_haar_dc(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
 }
 #endif
 
+static double od_compute_var_4x4(od_coeff *x, int stride) {
+  double sum;
+  double s2;
+  int i;
+  sum = 0;
+  s2 = 0;
+  for (i = 0; i < 4; i++) {
+    int j;
+    for (j = 0; j < 4; j++) {
+      double t;
+      t = x[i*stride + j];
+      sum += t;
+      s2 += t*t;
+    }
+  }
+  return 0.0625*(s2 - 0.0625*sum*sum);
+}
+
 static double od_compute_dist_8x8(daala_enc_ctx *enc, od_coeff *x, od_coeff *y,
  int stride) {
   od_coeff e[8][8];
   od_coeff E[8][8];
   double sum;
+  double min_var;
+  double activity;
   int i;
   int j;
+#if 1
+  min_var = 1e15;
+  for (i = 0; i < 3; i++) {
+    for (j = 0; j < 3; j++) {
+      double tmp;
+      tmp = od_compute_var_4x4(x + 2*i*stride + 2*j, stride);
+      min_var = OD_MINF(min_var, tmp);
+    }
+  }
+  activity = 1.62*pow(.25 + min_var/256., -1./6);
+#else
+  activity = 1;
+#endif
   for (i = 0; i < 8; i++) {
     for (j = 0; j < 8; j++) e[i][j] = x[i*stride + j] - y[i*stride + j];
   }
@@ -814,7 +847,7 @@ static double od_compute_dist_8x8(daala_enc_ctx *enc, od_coeff *x, od_coeff *y,
       sum += E[i][j]*(double)E[i][j]*mag;
     }
   }
-  return sum;
+  return activity*activity*sum;
 }
 
 static double od_compute_dist(daala_enc_ctx *enc, od_coeff *x, od_coeff *y,
