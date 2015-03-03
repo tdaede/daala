@@ -1727,8 +1727,8 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
   else {
     od_split_superblocks(enc, 1);
   }
-  od_encode_block_sizes(enc);
   od_encode_residual(enc, &mbctx);
+  od_encode_block_sizes(enc);
 #if defined(OD_DUMP_IMAGES)
   od_bsize_dump_img(&enc->state, nvsb, nhsb);
 #endif
