@@ -1227,22 +1227,10 @@ static double od_rd_encode(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx, int sbx, in
   nhsb = state->nhsb;
   nvsb = state->nvsb;
   lambda = 0.00001*pow(enc->quantizer[0],1.6);
-  /* hacky reset of etmp */
-  {
-    unsigned char *data;
-    int ystride;
-    int coeff_shift;
-    coeff_shift = enc->quantizer[pli] == 0 ? 0 : OD_COEFF_SHIFT;
-    data = state->io_imgs[OD_FRAME_INPUT].planes[pli].data;
-    ystride = state->io_imgs[OD_FRAME_INPUT].planes[pli].ystride;
-    for (y = 0; y < h; y++) {
-      for (x = 0; x < w; x++) {
-        state->etmp[pli][y*w + x] = (data[ystride*y + x] - 128) <<
-         coeff_shift;
-      }
-    }
-  }
+
   od_apply_prefilter_block(state->etmp[0], w, sbx, sby, 3,
+state->bsize, state->bstride, 0);
+  od_apply_prefilter_block(state->metmp[0], w, sbx, sby, 3,
 state->bsize, state->bstride, 0);
   
   od_encode_checkpoint(enc, &rbuf);
@@ -1275,7 +1263,30 @@ state->bsize, state->bstride, 0);
   distortion = distortion/32/32/(16*16);
   /* printf("%i %f %f\n", bits, distortion, bits*0.01 + distortion); */
   od_encode_rollback(enc, &rbuf);
+  od_apply_postfilter_block(state->etmp[0], w, sbx, sby, 3,
+state->bsize, state->bstride, 0);
+  od_apply_postfilter_block(state->metmp[0], w, sbx, sby, 3,
+state->bsize, state->bstride, 0);
   return bits*lambda + distortion;
+}
+
+static void bsize_restore(od_state *state, int sbx, int sby, unsigned char previous_bsize[16]){
+  int x;
+  int y;
+  for (y = 0; y < 4; y++) {
+    for (x = 0; x < 4; x++) {
+      state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = previous_bsize[y*4+x];
+    }
+  }
+}
+static void bsize_save(od_state *state, int sbx, int sby, unsigned char previous_bsize[16]){
+  int x;
+  int y;
+  for (y = 0; y < 4; y++) {
+    for (x = 0; x < 4; x++) {
+      previous_bsize[y*4+x] = state->bsize[(sby*4+y)*state->bstride + sbx*4+x];
+    }
+  }
 }
 
 static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
@@ -1293,8 +1304,8 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   int frame_height;
   int nhsb;
   int nvsb;
-  int joinx;
-  int joiny;
+  int quadrant;
+  int split;
   unsigned char previous_bsize[4*4];
   double rd;
   double best_rd;
@@ -1355,73 +1366,46 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
   w = frame_width >> xdec;
   h = frame_height >> ydec;
-  od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
+  /*od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
    state->bsize, state->bstride, xdec);
   if (!mbctx->is_keyframe) {
     od_apply_prefilter_frame_sbonly(state->metmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
-  }
+  }*/
   
   /* block size decision is on luma only */
   
   pli = 0;
   for (sby = 0; sby < nvsb; sby++) {
     for (sbx = 0; sbx < nhsb; sbx++) {
+      /* 16x16 everywhere */
       best_rd = od_rd_encode(enc,mbctx,sbx,sby);
-      for (joinx = 0; joinx < 4; joinx++) {
-        for (joiny = 0; joiny < 4; joiny++) {
-          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 1;
+      /* now we can try all 16 combos at the 16 x 16 level */
+      for (quadrant = 0; quadrant < 4; quadrant++) {
+        for (split = 0; split < 0x10; split++) {
+          y = (quadrant&2);
+          x = 2*(quadrant&1);
+          bsize_save(state, sbx, sby, previous_bsize);
+          state->bsize[(sby*4+y+0)*state->bstride + sbx*4+x+0] = (split&1) ? 1 : 0;
+          state->bsize[(sby*4+y+0)*state->bstride + sbx*4+x+1] = (split&2) ? 1 : 0;
+          state->bsize[(sby*4+y+1)*state->bstride + sbx*4+x+0] = (split&4) ? 1 : 0;
+          state->bsize[(sby*4+y+1)*state->bstride + sbx*4+x+1] = (split&8) ? 1 : 0;
           rd = od_rd_encode(enc,mbctx,sbx,sby);
-          if ((rd-5) < best_rd) {
+          if (rd < best_rd) {
             best_rd = rd;
           } else {
-            state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 0;
+            bsize_restore(state, sbx, sby, previous_bsize);
           }
         }
       }
-      /* 16 x 16 */
-      for (joinx = 0; joinx < 4; joinx += 2) {
-        for (joiny = 0; joiny < 4; joiny += 2) {
-          /*save bsize */
-          for (y = 0; y < 4; y++) {
-            for (x = 0; x < 4; x++) {
-              previous_bsize[y*4+x] = state->bsize[(sby*4+joiny+y)*state->bstride + sbx*4+joinx+x];
-            }
-          }
-          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx] = 2;
-          state->bsize[(sby*4+joiny+1)*state->bstride + sbx*4+joinx] = 2;
-          state->bsize[(sby*4+joiny)*state->bstride + sbx*4+joinx+1] = 2;
-          state->bsize[(sby*4+joiny+1)*state->bstride + sbx*4+joinx+1] = 2;
-          rd = od_rd_encode(enc,mbctx,sbx,sby);
-          if ((rd-3) < best_rd) {
-            best_rd = rd;
-          } else {
-            for (y = 0; y < 4; y++) {
-              for (x = 0; x < 4; x++) {
-                state->bsize[(sby*4+joiny+y)*state->bstride + sbx*4+joinx+x] = previous_bsize[y*4+x];
-              }
-            }
-          }
-        }
-      }
-      /* 32 x 32 */
-      /*save bsize */
+      /*now try 32x32*/
+      /*
       for (y = 0; y < 4; y++) {
         for (x = 0; x < 4; x++) {
-          previous_bsize[y*4+x] = state->bsize[(sby*4+y)*state->bstride + sbx*4+x];
-          state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = 3;
+          state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = 2;
         }
       }
-      rd = od_rd_encode(enc,mbctx,sbx,sby);
-      if ((rd-3) < best_rd) {
-        best_rd = rd;
-      } else {
-        for (y = 0; y < 4; y++) {
-          for (x = 0; x < 4; x++) {
-            state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = previous_bsize[y*4+x];
-          }
-        }
-      }
+      */
     }
   }
   
