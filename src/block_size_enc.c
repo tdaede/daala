@@ -498,10 +498,10 @@ void od_split_superblock(od_block_size_comp *bs,
       c[y*32+x] = (psy_img[y*stride+x]-128)<<OD_COEFF_SHIFT;
     }
   }
-  /* set to all 4x4 by default */
+  /* set to all 16x16 by default */
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
-      bs_tmp[j*4+i] = 0;
+      bs_tmp[j*4+i] = 2;
     }
   }
   for (i = 0; i < 4; i++) {
