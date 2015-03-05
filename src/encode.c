@@ -1251,7 +1251,7 @@ state->bsize, state->bstride, 0);
      0, sby > 0 && sbx < nhsb - 1);
   }
   od_encode_recursive(enc, mbctx, pli, sbx, sby, 3, xdec, ydec);
-  od_apply_postfilter_block(state->dtmp[0], w, sbx, sby, 3,
+  od_apply_postfilter_block(state->etmp[0], w, sbx, sby, 3,
 state->bsize, state->bstride, 0);
   distortion = 0;
   for (y = sby*32; y < (sby+1)*32; y++) {
@@ -1263,8 +1263,6 @@ state->bsize, state->bstride, 0);
   distortion = distortion/32/32/(16*16);
   /* printf("%i %f %f\n", bits, distortion, bits*0.01 + distortion); */
   od_encode_rollback(enc, &rbuf);
-  od_apply_postfilter_block(state->etmp[0], w, sbx, sby, 3,
-state->bsize, state->bstride, 0);
   od_apply_postfilter_block(state->metmp[0], w, sbx, sby, 3,
 state->bsize, state->bstride, 0);
   return bits*lambda + distortion;
@@ -1315,19 +1313,6 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   frame_height = state->frame_height;
   nhsb = state->nhsb;
   nvsb = state->nvsb;
-  for (pli = 0; pli < nplanes; pli++) {
-    xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
-    ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
-    w = frame_width >> xdec;
-    h = frame_height >> ydec;
-    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_FRAME);
-    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_PLANE, OD_ACCT_PLANE_FRAME);
-    /* TODO: We shouldn't be encoding the full, linear quantizer range. */
-    od_ec_enc_uint(&enc->ec, enc->quantizer[pli], 512<<OD_COEFF_SHIFT);
-    /*If the quantizer is zero (lossless), force scalar.*/
-    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
-    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_PLANE, OD_ACCT_PLANE_UNKNOWN);
-  }
   for (pli = 0; pli < nplanes; pli++) {
     xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
     ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
@@ -1416,6 +1401,20 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
     }
   }
   od_encode_block_sizes(enc);
+  
+  for (pli = 0; pli < nplanes; pli++) {
+    xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
+    ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
+    w = frame_width >> xdec;
+    h = frame_height >> ydec;
+    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_FRAME);
+    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_PLANE, OD_ACCT_PLANE_FRAME);
+    /* TODO: We shouldn't be encoding the full, linear quantizer range. */
+    od_ec_enc_uint(&enc->ec, enc->quantizer[pli], 512<<OD_COEFF_SHIFT);
+    /*If the quantizer is zero (lossless), force scalar.*/
+    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_TECHNIQUE, OD_ACCT_TECH_UNKNOWN);
+    OD_ENC_ACCT_UPDATE(enc, OD_ACCT_CAT_PLANE, OD_ACCT_PLANE_UNKNOWN);
+  }
   /* now do the final, real encode */
   for (pli = 0; pli < nplanes; pli++) {
     xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
