@@ -1400,10 +1400,17 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
       }
       /*now try 32x32*/
       /*
+      bsize_save(state, sbx, sby, previous_bsize);
       for (y = 0; y < 4; y++) {
         for (x = 0; x < 4; x++) {
-          state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = 2;
+          state->bsize[(sby*4+y)*state->bstride + sbx*4+x] = 3;
         }
+      }
+      rd = od_rd_encode(enc,mbctx,sbx,sby);
+      if (rd < best_rd) {
+        best_rd = rd;
+      } else {
+        bsize_restore(state, sbx, sby, previous_bsize);
       }
       */
     }
