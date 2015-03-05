@@ -1415,7 +1415,7 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
       */
     }
   }
-  
+  od_encode_block_sizes(enc);
   /* now do the final, real encode */
   for (pli = 0; pli < nplanes; pli++) {
     xdec = state->io_imgs[OD_FRAME_INPUT].planes[pli].xdec;
@@ -1719,7 +1719,6 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
     od_split_superblocks(enc, 1);
   }
   od_encode_residual(enc, &mbctx);
-  od_encode_block_sizes(enc);
 #if defined(OD_DUMP_IMAGES)
   od_bsize_dump_img(&enc->state, nvsb, nhsb);
 #endif
