@@ -931,7 +931,7 @@ static int od_encode_recursive(daala_enc_ctx *enc, od_mb_enc_ctx *ctx,
         }
         for (i = 0; i < 1 << (d - 1); i++) {
           for (j = 0; j < 1 << (d - 1); j++) {
-            enc->state.bsize[((by<<l>>1)+i)*enc->state.bstride + (bx<<l>>1) + j] = d;
+            enc->state.bsize[((by<<l>>1)+i)*enc->state.bstride + (bx<<l>>1) + j] = OD_MINI(OD_LIMIT_BSIZE_MAX, d);
           }
         }
         skip_split = skip_nosplit;
@@ -1692,7 +1692,7 @@ static void od_split_superblocks_rdo(daala_enc_ctx *enc,
   od_encode_checkpoint(enc, &rbuf);
   for (i = 0; i < 4*nvsb; i++) {
     for (j = 0; j < 4*nhsb; j++) {
-      state->bsize[i*state->bstride + j] = 0;
+      state->bsize[i*state->bstride + j] = OD_LIMIT_BSIZE_MIN;
     }
   }
   od_encode_residual(enc, mbctx, 1);
