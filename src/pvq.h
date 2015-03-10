@@ -59,7 +59,7 @@ extern const int OD_QM8[];
 #define OD_TUNE_AM (2)
 
 /*This define determines what the block size RDO search optimizes for.*/
-#define OD_TUNE_MODE (OD_TUNE_AM)
+#define OD_TUNE_MODE (OD_TUNE_PSNR)
 
 int od_qm_get_index(int ln, int band);
 
