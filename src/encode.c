@@ -1226,7 +1226,7 @@ static double od_rd_encode(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx, int sbx, in
   h = frame_height >> ydec;
   nhsb = state->nhsb;
   nvsb = state->nvsb;
-  lambda = 0.0001*pow(enc->quantizer[0],1.6);
+  lambda = 0.0000001*pow(enc->quantizer[0],1.6);
 
   od_apply_prefilter_block(state->etmp[0], w, sbx, sby, 3,
 state->bsize, state->bstride, 0);
