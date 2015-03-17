@@ -1351,12 +1351,12 @@ static void od_encode_residual(daala_enc_ctx *enc, od_mb_enc_ctx *mbctx) {
   ydec = state->io_imgs[OD_FRAME_INPUT].planes[pli].ydec;
   w = frame_width >> xdec;
   h = frame_height >> ydec;
-  /*od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
+  od_apply_prefilter_frame_sbonly(state->etmp[pli], w, nhsb, nvsb,
    state->bsize, state->bstride, xdec);
   if (!mbctx->is_keyframe) {
     od_apply_prefilter_frame_sbonly(state->metmp[pli], w, nhsb, nvsb,
      state->bsize, state->bstride, xdec);
-  }*/
+  }
   
   /* block size decision is on luma only */
   
