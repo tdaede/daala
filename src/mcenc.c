@@ -4164,7 +4164,7 @@ void od_mv_est(od_mv_est_ctx *est, int ref, int lambda) {
   }
 #endif
   lambda_save = est->lambda;
-  est->lambda *= 0.9;
+  est->lambda *= 0.8;
   od_mv_est_init_mvs(est, ref);
   est->lambda = lambda_save;
   od_mv_est_decimate(est, ref);
