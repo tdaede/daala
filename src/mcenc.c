@@ -4105,6 +4105,7 @@ void od_mv_est(od_mv_est_ctx *est, int ref, int lambda) {
   int pli;
   int i;
   int j;
+  int lambda_save;
   state = &est->enc->state;
   nhmvbs = (state->nhmbs + 1) << 2;
   nvmvbs = (state->nvmbs + 1) << 2;
@@ -4162,7 +4163,10 @@ void od_mv_est(od_mv_est_ctx *est, int ref, int lambda) {
     od_state_mvs_clear(&est->enc->state);
   }
 #endif
+  lambda_save = est->lambda;
+  est->lambda *= 0.9;
   od_mv_est_init_mvs(est, ref);
+  est->lambda = lambda_save;
   od_mv_est_decimate(est, ref);
   /*This threshold is somewhat arbitrary.
     Chen and Willson use 6000 (with SSD as an error metric).
