@@ -54,6 +54,8 @@ extern const int OD_HAAR_QM[2][OD_LOG_BSIZE_MAX];
 /*Adaptation speed of scalar Laplace encoding.*/
 # define OD_SCALAR_ADAPT_SPEED (4)
 
+# define OD_NUM_REFS (4)
+
 /*The golden reference frame.*/
 # define OD_FRAME_GOLD (0)
 /*The previous reference frame.*/
@@ -165,10 +167,10 @@ struct od_state{
   int32_t         frame_width;
   int32_t         frame_height;
   /** Buffer for the 4 ref images. */
-  int                 ref_imgi[4];
+  int                 ref_imgi[OD_NUM_REFS];
   /** Pointers to the ref images so one can move them around without coping
       them. */
-  od_img              ref_imgs[4];
+  od_img              ref_imgs[OD_NUM_REFS];
   /** Pointer to input and output image. */
   od_img              io_imgs[2];
   unsigned char *ref_line_buf[8];

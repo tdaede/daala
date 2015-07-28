@@ -1980,6 +1980,13 @@ int daala_encode_img_in(daala_enc_ctx *enc, od_img *img, int duration) {
    * FIXME: will need to be a wider type if other QMs get added */
   od_ec_encode_bool_q15(&enc->ec, mbctx.qm, 16384);
   od_ec_encode_bool_q15(&enc->ec, mbctx.use_haar_wavelet, 16384);
+  /* Buffer number to write this frame into */
+  od_ec_enc_uint(&enc->ec, enc->state.ref_imgi[OD_FRAME_SELF], OD_NUM_REFS);
+  /* Reference frame buffer numbers */
+  od_ec_enc_uint(&enc->ec, enc->state.ref_imgi[OD_FRAME_PREV] + 1,
+   OD_NUM_REFS + 1);
+  od_ec_enc_uint(&enc->ec, enc->state.ref_imgi[OD_FRAME_GOLD] + 1,
+   OD_NUM_REFS + 1);
   for (pli = 0; pli < nplanes; pli++) {
     enc->coded_quantizer[pli] =
      od_quantizer_to_codedquantizer(

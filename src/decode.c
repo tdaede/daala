@@ -45,12 +45,38 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include "state.h"
 #include "quantizer.h"
 
+static void od_dec_blank_img(od_img *img) {
+  int pli;
+  int frame_buf_width;
+  int frame_buf_height;
+  int plane_buf_width;
+  int plane_buf_height;
+  frame_buf_width = img->width + (OD_UMV_PADDING << 1);
+  frame_buf_height = img->height + (OD_UMV_PADDING << 1);
+  for (pli = 0; pli < img->nplanes; pli++) {
+    plane_buf_width = (frame_buf_width << 1) >> img->planes[pli].xdec;
+    plane_buf_height = (frame_buf_height << 1) >> img->planes[pli].ydec;
+    memset(img->planes[pli].data, 128, plane_buf_width*plane_buf_height);
+  }
+}
+
+/*We're decoding an INTER frame, but have no initialized reference
+   buffers (i.e., decoding did not start on a key frame).
+  We initialize them to a solid gray here.*/
+static void od_dec_init_dummy_frames(daala_dec_ctx *dec) {
+  int i;
+  for (i = 0; i < 4; i++) {
+    od_dec_blank_img(dec->state.ref_imgs + i);
+  }
+}
+
 static int od_dec_init(od_dec_ctx *dec, const daala_info *info,
  const daala_setup_info *setup) {
   int ret;
   (void)setup;
   ret = od_state_init(&dec->state, info);
   if (ret < 0) return ret;
+  od_dec_init_dummy_frames(dec);
   dec->packet_state = OD_PACKET_DATA;
   dec->user_bsize = NULL;
   dec->user_flags = NULL;
@@ -124,31 +150,6 @@ int daala_decode_ctl(daala_dec_ctx *dec, int req, void *buf, size_t buf_sz) {
     }
     default: return OD_EIMPL;
   }
-}
-
-static void od_dec_blank_img(od_img *img) {
-  int pli;
-  int frame_buf_width;
-  int frame_buf_height;
-  int plane_buf_width;
-  int plane_buf_height;
-  frame_buf_width = img->width + (OD_UMV_PADDING << 1);
-  frame_buf_height = img->height + (OD_UMV_PADDING << 1);
-  for (pli = 0; pli < img->nplanes; pli++) {
-    plane_buf_width = (frame_buf_width << 1) >> img->planes[pli].xdec;
-    plane_buf_height = (frame_buf_height << 1) >> img->planes[pli].ydec;
-    memset(img->planes[pli].data, 128, plane_buf_width*plane_buf_height);
-  }
-}
-
-/*We're decoding an INTER frame, but have no initialized reference
-   buffers (i.e., decoding did not start on a key frame).
-  We initialize them to a solid gray here.*/
-static void od_dec_init_dummy_frame(daala_dec_ctx *dec) {
-  dec->state.ref_imgi[OD_FRAME_GOLD] =
-   dec->state.ref_imgi[OD_FRAME_PREV] =
-   dec->state.ref_imgi[OD_FRAME_SELF] = 0;
-  od_dec_blank_img(dec->state.ref_imgs + dec->state.ref_imgi[OD_FRAME_SELF]);
 }
 
 static void od_decode_mv(daala_dec_ctx *dec, od_mv_grid_pt *mvg, int vx,
@@ -956,7 +957,6 @@ static void od_decode_coefficients(od_dec_ctx *dec, od_mb_dec_ctx *mbctx) {
 
 int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
  const ogg_packet *op) {
-  int refi;
   od_mb_dec_ctx mbctx;
   od_img *ref_img;
   if (dec == NULL || img == NULL || op == NULL) return OD_EFAULT;
@@ -969,6 +969,13 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
   mbctx.use_activity_masking = od_ec_decode_bool_q15(&dec->ec, 16384);
   mbctx.qm = od_ec_decode_bool_q15(&dec->ec, 16384);
   mbctx.use_haar_wavelet = od_ec_decode_bool_q15(&dec->ec, 16384);
+  /* Buffer number to write this frame into */
+  dec->state.ref_imgi[OD_FRAME_SELF] = od_ec_dec_uint(&dec->ec, OD_NUM_REFS);
+  /* Reference frame buffer numbers */
+  dec->state.ref_imgi[OD_FRAME_PREV] = od_ec_dec_uint(&dec->ec,
+   OD_NUM_REFS + 1) - 1;
+  dec->state.ref_imgi[OD_FRAME_GOLD] = od_ec_dec_uint(&dec->ec,
+   OD_NUM_REFS + 1) - 1;
   if (mbctx.is_keyframe) {
     int nplanes;
     int pli;
@@ -980,30 +987,6 @@ int daala_decode_packet_in(daala_dec_ctx *dec, od_img *img,
       }
     }
   }
-  /*Update the buffer state.*/
-  if (dec->state.ref_imgi[OD_FRAME_SELF] >= 0) {
-    dec->state.ref_imgi[OD_FRAME_PREV] =
-     dec->state.ref_imgi[OD_FRAME_SELF];
-    /*TODO: Update golden frame.*/
-    if (dec->state.ref_imgi[OD_FRAME_GOLD] < 0) {
-      dec->state.ref_imgi[OD_FRAME_GOLD] =
-       dec->state.ref_imgi[OD_FRAME_SELF];
-      /*TODO: Mark keyframe timebase.*/
-    }
-  }
-  if (!mbctx.is_keyframe) {
-    /*If there have been no reference frames, and we need one,
-       initialize one.*/
-    if (dec->state.ref_imgi[OD_FRAME_GOLD] < 0 ||
-     dec->state.ref_imgi[OD_FRAME_PREV] < 0 ) {
-      od_dec_init_dummy_frame(dec);
-    }
-  }
-  /*Select a free buffer to use for this reference frame.*/
-  for (refi = 0; refi == dec->state.ref_imgi[OD_FRAME_GOLD]
-   || refi == dec->state.ref_imgi[OD_FRAME_PREV]
-   || refi == dec->state.ref_imgi[OD_FRAME_NEXT]; refi++);
-  dec->state.ref_imgi[OD_FRAME_SELF] = refi;
   od_adapt_ctx_reset(&dec->state.adapt, mbctx.is_keyframe);
   if (!mbctx.is_keyframe) {
     od_dec_mv_unpack(dec);

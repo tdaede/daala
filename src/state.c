@@ -292,7 +292,7 @@ static int od_state_init_impl(od_state *state, const daala_info *info) {
   state->nhmvbs = state->frame_width >> OD_LOG_MVBSIZE_MIN;
   state->nvmvbs = state->frame_height >> OD_LOG_MVBSIZE_MIN;
   od_state_opt_vtbl_init(state);
-  if (OD_UNLIKELY(od_state_ref_imgs_init(state, 4, 2))) {
+  if (OD_UNLIKELY(od_state_ref_imgs_init(state, OD_NUM_REFS, 2))) {
     return OD_EFAULT;
   }
   if (OD_UNLIKELY(od_state_mvs_init(state))) {
