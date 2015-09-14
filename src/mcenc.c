@@ -2436,7 +2436,7 @@ void od_mv_est_check_rd_state(od_mv_est_ctx *est, int mv_res) {
         OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_WARN,
          "Predictor was: (%i, %i)@%i   MV was: (%i, %i)@%i",
          pred[0], pred[1], ref_pred, mvg->mv[mvi][0] >> mv_res,
-         mvg->mv[mvi][1] >> mv_res, mvg->ref));
+         mvg->mv[mvi][1] >> mv_res, mvg->ref[mvi]));
         OD_ASSERT(mv_rate == mv->mv_rate);
       }
     }
@@ -4435,13 +4435,14 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
       /*Restore the state for this MV itself.*/
       pred_dp->mv->mv_rate = pred_dp->states[pred_si].mv_rate;
       mvg = pred_dp->mvg;
+      OD_ASSERT(mvg->blend == 0);
       for (mvi = 0; mvi < 2; mvi++) {
         mvg->mv[mvi][0] = pred_dp->states[pred_si].mv[mvi][0];
         mvg->mv[mvi][1] = pred_dp->states[pred_si].mv[mvi][1];
       }
       OD_LOG_PARTIAL((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
        "(%i, %i: %i)->(%i , %i) ",
-       pred_dp->mv->vx, pred_dp->mv->vy, pred_si, mvg->mv[0], mvg->mv[1]));
+       pred_dp->mv->vx, pred_dp->mv->vy, pred_si, mvg->mv[0][0], mvg->mv[0][1]));
       /*Restore the state for the MVs this one predicted.*/
       for (pi = 0; pi < pred_dp->npred_changeable; pi++) {
         pred_dp->predicted_mvs[pi]->mv_rate =
@@ -4460,7 +4461,7 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
    OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK]);
   *cur_mv_rate = od_mv_est_bits(est, equal_mvs,
    mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
-   mvg->ref, ref_pred);
+   mvg->ref[0], ref_pred);
   OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
    "Current MV rate: %i - %i = %i",
    *cur_mv_rate, mv->mv_rate, *cur_mv_rate - mv->mv_rate));
@@ -5327,8 +5328,10 @@ static void od_mv_dp_col_init(od_mv_est_ctx *est,
   state = &est->enc->state;
   dp->mv = est->mvs[vy] + vx;
   dp->mvg = state->mv_grid[vy] + vx;
-  dp->original_mv[0] = dp->mvg->mv[mvi][0];
-  dp->original_mv[1] = dp->mvg->mv[mvi][1];
+  dp->original_mv[0][0] = dp->mvg->mv[0][0];
+  dp->original_mv[0][1] = dp->mvg->mv[0][1];
+  dp->original_mv[1][0] = dp->mvg->mv[1][0];
+  dp->original_mv[1][1] = dp->mvg->mv[1][1];
   dp->original_mv_rate = dp->mv->mv_rate;
   nhmvbs = state->nhmvbs;
   nvmvbs = state->nvmvbs;
@@ -5649,8 +5652,10 @@ static void od_mv_dp_install_col_state(od_mv_dp_node *dp, int prevsi) {
     /*Install the state for this MV itself.*/
     dp->mv->mv_rate = dp->states[si].mv_rate;
     mvg = dp->mvg;
-    mvg->mv[mvi][0] = dp->states[si].mv[0];
-    mvg->mv[mvi][1] = dp->states[si].mv[1];
+    mvg->mv[0][0] = dp->states[si].mv[0][0];
+    mvg->mv[0][1] = dp->states[si].mv[0][1];
+    mvg->mv[1][0] = dp->states[si].mv[1][0];
+    mvg->mv[1][1] = dp->states[si].mv[1][1];
     /*Install the new block SADs.*/
     for (bi = 0; bi < dp->nblocks; bi++) {
       dp->blocks[bi]->sad = dp->states[si].block_sads[bi];
@@ -6005,7 +6010,7 @@ int od_mv_est_update_mv_rates(od_mv_est_ctx *est, int mv_res) {
       dr -= mv->mv_rate;
       mv->mv_rate = od_mv_est_bits(est, equal_mvs,
        mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
-       mvg->ref[0], ref_pred, 0);
+       mvg->ref[0], ref_pred);
       dr += mv->mv_rate;
     }
   }

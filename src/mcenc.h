@@ -120,7 +120,7 @@ struct od_mv_dp_node {
      states.*/
   int npred_changeable;
   /*The original MV used by this node.*/
-  int original_mv[2];
+  int original_mv[2][2];
   /*The original rate of this MV.*/
   int original_mv_rate;
   /*The original MV rates before predictors were changed by this node.
