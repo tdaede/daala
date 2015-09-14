@@ -4456,9 +4456,9 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
   mvg = dp->mvg;
   OD_ASSERT(mvg->blend == 0);
   equal_mvs = od_state_get_predictor(state, pred, mv->vx, mv->vy,
-   OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], mv_res, mvg->ref[0]);
+   OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], mv_res, mvg->ref[0], 0);
   ref_pred = od_mc_get_ref_predictor(state, mv->vx, mv->vy,
-   OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK]);
+   OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], 0);
   *cur_mv_rate = od_mv_est_bits(est, equal_mvs,
    mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
    mvg->ref[0], ref_pred);
@@ -4473,14 +4473,15 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
   for (pi = 0; pi < dp->npredicted; pi++) {
     mv = dp->predicted_mvs[pi];
     mvg = dp->predicted_mvgs[pi];
+    OD_ASSERT(mvg->blend == 0);
     equal_mvs = od_state_get_predictor(state, pred, mv->vx, mv->vy,
      OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], mv_res,
-     mvg->ref[0]);
+     mvg->ref[0], 0);
     ref_pred = od_mc_get_ref_predictor(state, mv->vx, mv->vy,
-     OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK]);
+     OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], 0);
     pred_mv_rates[pi] = od_mv_est_bits(est, equal_mvs,
      mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
-     mvg->ref, ref_pred);
+     mvg->ref[0], ref_pred);
     OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
      "Calculated predicted mv_rate of %i for (%i, %i)",
      pred_mv_rates[pi], mv->vx, mv->vy));
@@ -5004,8 +5005,10 @@ static void od_mv_dp_restore_row_state(od_mv_dp_node *dp) {
     /*Restore the state for this MV itself.*/
     dp->mv->mv_rate = dp->original_mv_rate;
     mvg = dp->mvg;
-    mvg->mv[mvi][0] = dp->original_mv[0];
-    mvg->mv[mvi][1] = dp->original_mv[1];
+    mvg->mv[0][0] = dp->original_mv[0][0];
+    mvg->mv[0][1] = dp->original_mv[0][1];
+    mvg->mv[1][0] = dp->original_mv[1][0];
+    mvg->mv[1][1] = dp->original_mv[1][1];
     for (pi = 0; pi < dp->npred_changeable; pi++) {
       /*Restore the state for the MVs this one predicted.*/
       dp->predicted_mvs[pi]->mv_rate = dp->original_mv_rates[pi];
@@ -5045,8 +5048,10 @@ static void od_mv_dp_install_row_state(od_mv_dp_node *dp, int prevsi) {
      dp->mv->vx, dp->mv->vy, dp->states[si].mv_rate));
     dp->mv->mv_rate = dp->states[si].mv_rate;
     mvg = dp->mvg;
-    mvg->mv[mvi][0] = dp->states[si].mv[0];
-    mvg->mv[mvi][1] = dp->states[si].mv[1];
+    mvg->mv[0][0] = dp->states[si].mv[0][0];
+    mvg->mv[0][1] = dp->states[si].mv[0][1];
+    mvg->mv[1][0] = dp->states[si].mv[1][0];
+    mvg->mv[1][1] = dp->states[si].mv[1][1];
     /*Install the new block SADs.*/
     for (bi = 0; bi < dp->nblocks; bi++) {
       dp->blocks[bi]->sad = dp->states[si].block_sads[bi];
@@ -5112,8 +5117,8 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
     log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
     mvb_sz = 1 << log_mvb_sz;
     mvg = grid + vx;
-    curx = mvg->mv[mvi][0];
-    cury = mvg->mv[mvi][1];
+    curx = mvg->mv[0][0];
+    cury = mvg->mv[0][1];
     dp_node = est->dp_nodes;
     od_mv_dp_row_init(est, dp_node, vx, vy, NULL);
     od_mv_dp_first_row_block_setup(est, dp_node, vx, vy);
@@ -5123,13 +5128,14 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
     b = od_mv_est_get_boundary_case(state, vx, vy, curx, cury,
      1 << log_dsz, log_mvb_sz + OD_LOG_MVBSIZE_MIN);
     nsites = pattern_nsites[b];
+    OD_ASSERT(mvg->blend == 0);
     for (sitei = 0, site = 4;; sitei++) {
       cstate = dp_node[0].states + sitei;
-      cstate->mv[0] = curx + (OD_SITE_DX[site] << log_dsz);
-      cstate->mv[1] = cury + (OD_SITE_DY[site] << log_dsz);
+      cstate->mv[0][0] = curx + (OD_SITE_DX[site] << log_dsz);
+      cstate->mv[0][1] = cury + (OD_SITE_DY[site] << log_dsz);
       cstate->prevsi = -1;
-      mvg->mv[mvi][0] = cstate->mv[0];
-      mvg->mv[mvi][1] = cstate->mv[1];
+      mvg->mv[0][0] = cstate->mv[0][0];
+      mvg->mv[0][1] = cstate->mv[0][1];
       cstate->dr = od_mv_dp_get_rate_change(est, dp_node,
        &cstate->mv_rate, cstate->pred_mv_rates, -1, mv_res);
       cstate->dd = od_mv_dp_get_sad_change8(est, dp_node,
@@ -5165,30 +5171,31 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
       log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
       mvb_sz = 1 << log_mvb_sz;
       mvg = grid + vx;
-      curx = mvg->mv[mvi][0];
-      cury = mvg->mv[mvi][1];
+      curx = mvg->mv[0][0];
+      cury = mvg->mv[0][1];
       od_mv_dp_row_init(est, dp_node + 1, vx, vy, dp_node);
       od_mv_dp_prev_row_block_setup(est, dp_node + 1, vx, vy);
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG, "TESTING block SADs:"));
       if (od_logging_active(OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG)) {
-        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
-        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
+        pmvg->mv[0][0] = dp_node[0].original_mv[0];
+        pmvg->mv[0][0] = dp_node[0].original_mv[0];
         od_mv_dp_get_sad_change8(est, dp_node + 1, block_sads[0]);
       }
       /*Compute the set of states for this node.*/
       b = od_mv_est_get_boundary_case(state,
        vx, vy, curx, cury, 1 << log_dsz, log_mvb_sz + OD_LOG_MVBSIZE_MIN);
       nsites = pattern_nsites[b];
+      OD_ASSERT(mvg->blend == 0);
       for (sitei = 0, site = 4;; sitei++) {
         cstate = dp_node[1].states + sitei;
-        cstate->mv[0] = curx + (OD_SITE_DX[site] << log_dsz);
-        cstate->mv[1] = cury + (OD_SITE_DY[site] << log_dsz);
+        cstate->mv[0][0] = curx + (OD_SITE_DX[site] << log_dsz);
+        cstate->mv[0][1] = cury + (OD_SITE_DY[site] << log_dsz);
         best_si = 0;
         best_dr = dp_node[0].states[0].dr;
         best_dd = dp_node[0].states[0].dd;
         best_cost = INT_MAX;
-        mvg->mv[mvi][0] = cstate->mv[0];
-        mvg->mv[mvi][1] = cstate->mv[1];
+        mvg->mv[0][0] = cstate->mv[0][0];
+        mvg->mv[0][1] = cstate->mv[0][1];
         for (si = 0; si < dp_node[0].nstates; si++) {
           pstate = dp_node[0].states + si;
           /*Get the rate change for this state using previous state si.
@@ -5616,8 +5623,10 @@ static void od_mv_dp_restore_col_state(od_mv_dp_node *dp) {
     /*Restore the state for this MV itself.*/
     dp->mv->mv_rate = dp->original_mv_rate;
     mvg = dp->mvg;
-    mvg->mv[0] = dp->original_mv[0];
-    mvg->mv[1] = dp->original_mv[1];
+    mvg->mv[0][0] = dp->original_mv[0][0];
+    mvg->mv[0][1] = dp->original_mv[0][1];
+    mvg->mv[1][0] = dp->original_mv[1][0];
+    mvg->mv[1][1] = dp->original_mv[1][1];
     for (pi = 0; pi < dp->npred_changeable; pi++) {
       /*Restore the state for the MVs this one predicted.*/
       dp->predicted_mvs[pi]->mv_rate = dp->original_mv_rates[pi];
@@ -5717,8 +5726,9 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
     log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
     mvb_sz = 1 << log_mvb_sz;
     mvg = grid[vy] + vx;
-    curx = mvg->mv[0];
-    cury = mvg->mv[1];
+    OD_ASSERT(mvg->blend == 0);
+    curx = mvg->mv[0][0];
+    cury = mvg->mv[0][1];
     dp_node = est->dp_nodes;
     od_mv_dp_col_init(est, dp_node, vx, vy, NULL);
     od_mv_dp_first_col_block_setup(est, dp_node, vx, vy);
@@ -5732,8 +5742,8 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
     nsites = pattern_nsites[b];
     for (sitei = 0, site = 4;; sitei++) {
       cstate = dp_node[0].states + sitei;
-      cstate->mv[0] = curx + (OD_SITE_DX[site] << log_dsz);
-      cstate->mv[1] = cury + (OD_SITE_DY[site] << log_dsz);
+      cstate->mv[0][0] = curx + (OD_SITE_DX[site] << log_dsz);
+      cstate->mv[0][1] = cury + (OD_SITE_DY[site] << log_dsz);
       cstate->prevsi = -1;
       mvg->mv[0][0] = cstate->mv[0][0];
       mvg->mv[0][1] = cstate->mv[0][1];
@@ -5773,14 +5783,15 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
       log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
       mvb_sz = 1 << log_mvb_sz;
       mvg = grid[vy] + vx;
-      curx = mvg->mv[mvi][0];
-      cury = mvg->mv[mvi][1];
+      OD_ASSERT(mvg->blend == 0);
+      curx = mvg->mv[0][0];
+      cury = mvg->mv[0][1];
       od_mv_dp_col_init(est, dp_node + 1, vx, vy, dp_node);
       od_mv_dp_prev_col_block_setup(est, dp_node + 1, vx, vy);
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG, "TESTING block SADs:"));
       if (od_logging_active(OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG)) {
-        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
-        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
+        pmvg->mv[0][0] = dp_node[0].original_mv[0];
+        pmvg->mv[0][0] = dp_node[0].original_mv[0];
         od_mv_dp_get_sad_change8(est, dp_node + 1, block_sads[0]);
       }
       /*Compute the set of states for this node.*/
@@ -5789,8 +5800,8 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
       nsites = pattern_nsites[b];
       for (sitei = 0, site = 4;; sitei++) {
         cstate = dp_node[1].states + sitei;
-        cstate->mv[0] = curx + (OD_SITE_DX[site] << log_dsz);
-        cstate->mv[1] = cury + (OD_SITE_DY[site] << log_dsz);
+        cstate->mv[0][0] = curx + (OD_SITE_DX[site] << log_dsz);
+        cstate->mv[0][1] = cury + (OD_SITE_DY[site] << log_dsz);
         best_si = 0;
         best_dr = dp_node[0].states[0].dr;
         best_dd = dp_node[0].states[0].dd;
@@ -6006,7 +6017,7 @@ int od_mv_est_update_mv_rates(od_mv_est_ctx *est, int mv_res) {
        vx, vy, OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK], mv_res,
        mvg->ref[0], 0);
       ref_pred = od_mc_get_ref_predictor(state,
-       vx, vy, OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK]);
+       vx, vy, OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK], 0);
       dr -= mv->mv_rate;
       mv->mv_rate = od_mv_est_bits(est, equal_mvs,
        mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
