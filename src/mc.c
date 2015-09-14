@@ -252,8 +252,13 @@ void od_state_mvs_clear(od_state *state) {
     grid = state->mv_grid[vy];
     for (vx = 0; vx <= nhmvbs; vx++) {
       grid[vx].valid = 0;
-      grid[vx].mv[0] = 0;
-      grid[vx].mv[1] = 0;
+      grid[vx].mv[0][0] = 0;
+      grid[vx].mv[0][1] = 0;
+      grid[vx].mv[1][0] = 0;
+      grid[vx].mv[1][1] = 0;
+      grid[vx].ref[0] = 0;
+      grid[vx].ref[1] = 0;
+      grid[vx].blend = 0;
     }
   }
 }
@@ -2477,8 +2482,9 @@ void od_mc_predict8(od_state *state, unsigned char *dst,
    oc, s, log_xblk_sz, log_yblk_sz);
 }
 
-int od_mc_get_ref_predictor(od_state *state, int vx, int vy, int level) {
-  static const od_mv_grid_pt ZERO_GRID_PT = { {0, 0}, 1, OD_FRAME_PREV};
+int od_mc_get_ref_predictor(od_state *state, int vx, int vy, int level, int mvi) {
+  static const od_mv_grid_pt ZERO_GRID_PT = { {{0, 0}, {0, 0}}, 1,
+   {OD_FRAME_PREV, OD_FRAME_PREV}, 0};
   int mvb_sz;
   const od_mv_grid_pt *cneighbors[4];
   int ncns;
@@ -2522,7 +2528,7 @@ int od_mc_get_ref_predictor(od_state *state, int vx, int vy, int level) {
     }
   }
   for (ci = 0; ci < ncns; ci++) {
-    int ref = cneighbors[ci]->ref;
+    int ref = cneighbors[ci]->ref[mvi];
     OD_ASSERT(ref < 2);
     hist[ref]++;
     if (hist[ref] > max_count) {
@@ -2535,8 +2541,9 @@ int od_mc_get_ref_predictor(od_state *state, int vx, int vy, int level) {
 
 /*Gets the predictor for a given MV node at the given MV resolution.*/
 int od_state_get_predictor(od_state *state,
- int pred[2], int vx, int vy, int level, int mv_res, int ref) {
-  static const od_mv_grid_pt ZERO_GRID_PT = { {0, 0}, 1, OD_FRAME_PREV};
+ int pred[2], int vx, int vy, int level, int mv_res, int ref, int mvi) {
+  static const od_mv_grid_pt ZERO_GRID_PT = { {{0, 0}, {0, 0}}, 1,
+   {OD_FRAME_PREV, OD_FRAME_PREV}, 0};
   const od_mv_grid_pt *cneighbors[4];
   int a[4][2];
   int equal_mvs;
@@ -2578,8 +2585,8 @@ int od_state_get_predictor(od_state *state,
     }
   }
   for (ci = 0; ci < ncns; ci++) {
-    a[ci][0] = cneighbors[ci]->mv[0];
-    a[ci][1] = cneighbors[ci]->mv[1];
+    a[ci][0] = cneighbors[ci]->mv[mvi][0];
+    a[ci][1] = cneighbors[ci]->mv[mvi][1];
 #if defined(OD_ENABLE_LOGGING)
     if (!cneighbors[ci]->valid) {
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_ERR,
@@ -2648,8 +2655,8 @@ This last compare is unneeded for a median:
   }
   equal_mvs = 0;
   for (ci = 0; ci < ncns; ci++) {
-    if (pred[0] == OD_DIV_POW2_RE(cneighbors[ci]->mv[0], mv_res) &&
-     pred[1] == OD_DIV_POW2_RE(cneighbors[ci]->mv[1], mv_res)) {
+    if (pred[0] == OD_DIV_POW2_RE(cneighbors[ci]->mv[mvi][0], mv_res) &&
+     pred[1] == OD_DIV_POW2_RE(cneighbors[ci]->mv[mvi][1], mv_res)) {
       equal_mvs++;
     }
   }

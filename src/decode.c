@@ -180,18 +180,21 @@ static void od_decode_mv(daala_dec_ctx *dec, int num_refs, od_mv_grid_pt *mvg,
   int id;
   int equal_mvs;
   int ref_pred;
+  int mvi = 0;
   if (num_refs > 1) {
-    ref_pred = od_mc_get_ref_predictor(&dec->state, vx, vy, level);
+    OD_ASSERT(mvg->blend == 0);
+    ref_pred = od_mc_get_ref_predictor(&dec->state, vx, vy, level, mvi);
     OD_ASSERT(ref_pred >= 0);
     OD_ASSERT(ref_pred < num_refs);
-    mvg->ref = od_decode_cdf_adapt(&dec->ec,
+    mvg->ref[0] = od_decode_cdf_adapt(&dec->ec,
      dec->state.adapt.mv_ref_cdf[ref_pred], num_refs, 256,
      "mv:ref");
   } else {
-    mvg->ref = OD_FRAME_PREV;
+    OD_ASSERT(mvg->blend == 0);
+    mvg->ref[mvi] = OD_FRAME_PREV;
   }
   equal_mvs = od_state_get_predictor(&dec->state, pred, vx, vy, level,
-   mv_res, mvg->ref);
+   mv_res, mvg->ref[mvi], mvi);
   model = &dec->state.adapt.mv_model;
   id = od_decode_cdf_adapt(&dec->ec, dec->state.adapt.mv_small_cdf[equal_mvs],
    16, dec->state.adapt.mv_small_increment, "mv:low");
@@ -207,8 +210,8 @@ static void od_decode_mv(daala_dec_ctx *dec, int num_refs, od_mv_grid_pt *mvg,
   }
   if (ox && od_ec_dec_bits(&dec->ec, 1, "mv:sign:x")) ox = -ox;
   if (oy && od_ec_dec_bits(&dec->ec, 1, "mv:sign:y")) oy = -oy;
-  mvg->mv[0] = (pred[0] + ox) << mv_res;
-  mvg->mv[1] = (pred[1] + oy) << mv_res;
+  mvg->mv[mvi][0] = (pred[0] + ox) << mv_res;
+  mvg->mv[mvi][1] = (pred[1] + oy) << mv_res;
 }
 
 struct od_mb_dec_ctx {

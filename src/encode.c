@@ -1415,19 +1415,21 @@ static void od_encode_mv(daala_enc_ctx *enc, int num_refs, od_mv_grid_pt *mvg,
   int id;
   int equal_mvs;
   int ref_pred;
+  int mvi = 0;
+  OD_ASSERT(mvg->blend == 0);
   if (num_refs > 1) {
     /* Code reference index. */
-    ref_pred = od_mc_get_ref_predictor(&enc->state, vx, vy, level);
+    ref_pred = od_mc_get_ref_predictor(&enc->state, vx, vy, level, mvi);
     OD_ASSERT(ref_pred >= 0);
     OD_ASSERT(ref_pred < num_refs);
-    OD_ASSERT(mvg->ref < num_refs);
-    od_encode_cdf_adapt(&enc->ec, mvg->ref,
+    OD_ASSERT(mvg->ref[mvi] < num_refs);
+    od_encode_cdf_adapt(&enc->ec, mvg->ref[mvi],
      enc->state.adapt.mv_ref_cdf[ref_pred], num_refs, 256);
   }
   equal_mvs = od_state_get_predictor(&enc->state, pred, vx, vy, level,
-   mv_res, mvg->ref);
-  ox = (mvg->mv[0] >> mv_res) - pred[0];
-  oy = (mvg->mv[1] >> mv_res) - pred[1];
+   mv_res, mvg->ref[mvi], mvi);
+  ox = (mvg->mv[mvi][0] >> mv_res) - pred[0];
+  oy = (mvg->mv[mvi][1] >> mv_res) - pred[1];
   /*Interleave positive and negative values.*/
   model = &enc->state.adapt.mv_model;
   id = OD_MINI(abs(oy), 3)*4 + OD_MINI(abs(ox), 3);

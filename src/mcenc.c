@@ -2403,7 +2403,9 @@ void od_mv_est_check_rd_state(od_mv_est_ctx *est, int mv_res) {
       int level;
       int mvb_sz;
       int ref_pred;
+      int mvi = 0;
       mvg = state->mv_grid[vy] + vx;
+      OD_ASSERT(mvg->blend == 0);
       if (!mvg->valid) continue;
       level = OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK];
       mvb_sz = 1 << ((OD_MC_LEVEL_MAX - level) >> 1);
@@ -2421,20 +2423,20 @@ void od_mv_est_check_rd_state(od_mv_est_ctx *est, int mv_res) {
       }
       mv = est->mvs[vy] + vx;
       equal_mvs = od_state_get_predictor(state, pred, vx, vy,
-       OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK], mv_res, mvg->ref);
+       OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK], mv_res, mvg->ref[mvi], mvi);
       ref_pred = od_mc_get_ref_predictor(state,  vx, vy,
-       OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK]);
+       OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK], mvi);
       mv_rate = od_mv_est_bits(est, equal_mvs,
-       mvg->mv[0] >> mv_res, mvg->mv[1] >> mv_res, pred[0], pred[1],
-       mvg->ref, ref_pred);
+       mvg->mv[mvi][0] >> mv_res, mvg->mv[mvi][1] >> mv_res, pred[0], pred[1],
+       mvg->ref[mvi], ref_pred);
       if (mv_rate != mv->mv_rate) {
         OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_WARN,
          "Failure at node (%i, %i): mv_rate should be %i (is %i)",
          vx, vy, mv_rate, mv->mv_rate));
         OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_WARN,
          "Predictor was: (%i, %i)@%i   MV was: (%i, %i)@%i",
-         pred[0], pred[1], ref_pred, mvg->mv[0] >> mv_res,
-         mvg->mv[1] >> mv_res, mvg->ref));
+         pred[0], pred[1], ref_pred, mvg->mv[mvi][0] >> mv_res,
+         mvg->mv[mvi][1] >> mv_res, mvg->ref));
         OD_ASSERT(mv_rate == mv->mv_rate);
       }
     }
@@ -2488,6 +2490,8 @@ static void od_mv_est_init_mv(od_mv_est_ctx *est, int ref, int vx, int vy,
   int x0;
   int y0;
 #endif
+  /* Currently can only install a solution for mv0. */
+  int mvi = 0;
   OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
    "Initial search for MV (%i, %i):", vx, vy));
   state = &est->enc->state;
@@ -2513,10 +2517,11 @@ static void od_mv_est_init_mv(od_mv_est_ctx *est, int ref, int vx, int vy,
     int pred_ref;
     /* Current rate may need to be updated because of a reference change
        during this BMA pass */
-    equal_mvs = od_state_get_predictor(state, pred, vx, vy, level, 2, mvg->ref);
-    pred_ref = od_mc_get_ref_predictor(state, vx, vy, level);
+    OD_ASSERT(mvg->blend == 0);
+    equal_mvs = od_state_get_predictor(state, pred, vx, vy, level, 2, mvg->ref[0], 0);
+    pred_ref = od_mc_get_ref_predictor(state, vx, vy, level, 0);
     mv->mv_rate = od_mv_est_bits(est, equal_mvs,
-       mvg->mv[0] >> 2, mvg->mv[1] >> 2, pred[0], pred[1], mvg->ref, pred_ref);
+       mvg->mv[0][0] >> 2, mvg->mv[0][1] >> 2, pred[0], pred[1], mvg->ref[0], pred_ref);
   }
   /*Each grid point can contribute to 4 blocks around it at the current block
      size, _except_ at the border of the frame, since we do not construct a
@@ -2545,10 +2550,8 @@ static void od_mv_est_init_mv(od_mv_est_ctx *est, int ref, int vx, int vy,
   ncns = 4;
   nhmvbs = state->nhmvbs;
   nvmvbs = state->nvmvbs;
-  equal_mvs = od_state_get_predictor(state, pred, vx, vy, level, 2, ref);
   candx = OD_CLAMPI(mvxmin, OD_DIV2_RE(pred[0]), mvxmax);
   candy = OD_CLAMPI(mvymin, OD_DIV2_RE(pred[1]), mvymax);
-  ref_pred = od_mc_get_ref_predictor(state, vx, vy, level);
   /*Find additional candidates.*/
   if (level == 0) {
     if (vy >= mvb_sz) {
@@ -2609,6 +2612,9 @@ static void od_mv_est_init_mv(od_mv_est_ctx *est, int ref, int vx, int vy,
      x0 + (candx << 1), y0 + (candy << 1), OD_YCbCr_MVCAND);
   }
 #endif
+  OD_ASSERT(mvg->blend == 0);
+  equal_mvs = od_state_get_predictor(state, pred, vx, vy, level, 2, ref, 0);
+  ref_pred = od_mc_get_ref_predictor(state, vx, vy, level, 0);
   best_sad = od_mv_est_bma_sad8(est, ref, bx, by, candx, candy, log_mvb_sz);
   best_rate = od_mv_est_bits(est, equal_mvs,
    candx << 1, candy << 1, pred[0], pred[1], ref, ref_pred);
@@ -2828,9 +2834,9 @@ static void od_mv_est_init_mv(od_mv_est_ctx *est, int ref, int vx, int vy,
      "Found a better SAD then previous best."));
     mv->bma_mvs[0][ref][0] = best_vec[0];
     mv->bma_mvs[0][ref][1] = best_vec[1];
-    mvg->mv[0] = best_vec[0] << 3;
-    mvg->mv[1] = best_vec[1] << 3;
-    mvg->ref = ref;
+    mvg->mv[mvi][0] = best_vec[0] << 3;
+    mvg->mv[mvi][1] = best_vec[1] << 3;
+    mvg->ref[mvi] = ref;
     mvg->valid = 1;
     mv->bma_sad = best_sad;
     mv->mv_rate = best_rate;
@@ -2840,14 +2846,14 @@ static void od_mv_est_init_mv(od_mv_est_ctx *est, int ref, int vx, int vy,
 #if defined(OD_ENABLE_ASSERTIONS) || defined(OD_ENABLE_LOGGING)
     {
       int pred_ref;
-      OD_ASSERT(mvg->mv[0] <= mvxmax << 3);
-      OD_ASSERT(mvg->mv[0] >= mvxmin << 3);
-      OD_ASSERT(mvg->mv[1] <= mvymax << 3);
-      OD_ASSERT(mvg->mv[1] >= mvymin << 3);
+      OD_ASSERT(mvg->mv[mvi][0] <= mvxmax << 3);
+      OD_ASSERT(mvg->mv[mvi][0] >= mvxmin << 3);
+      OD_ASSERT(mvg->mv[mvi][1] <= mvymax << 3);
+      OD_ASSERT(mvg->mv[mvi][1] >= mvymin << 3);
       equal_mvs = od_state_get_predictor(state, pred, vx, vy, level, 2, ref);
       pred_ref = od_mc_get_ref_predictor(state, vx, vy, level);
       mv->mv_rate = od_mv_est_bits(est, equal_mvs,
-       mvg->mv[0] >> 2, mvg->mv[1] >> 2, pred[0], pred[1], ref, pred_ref);
+       mvg->mv[mvi][0] >> 2, mvg->mv[mvi][1] >> 2, pred[0], pred[1], ref, pred_ref);
       if (mv->mv_rate != best_rate) {
         OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_ERR,
          "Failure in MV rate init: %i != %i (predictor (%i, %i)@%i)",
@@ -4424,12 +4430,15 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
     }
     /*Then restore that state going FORWARDS.*/
     for (pred_dp = dp->min_predictor_node; pred_dp < dp; pred_dp++) {
+      int mvi;
       pred_si = pred_sis[pred_dp - dp->min_predictor_node];
       /*Restore the state for this MV itself.*/
       pred_dp->mv->mv_rate = pred_dp->states[pred_si].mv_rate;
       mvg = pred_dp->mvg;
-      mvg->mv[0] = pred_dp->states[pred_si].mv[0];
-      mvg->mv[1] = pred_dp->states[pred_si].mv[1];
+      for (mvi = 0; mvi < 2; mvi++) {
+        mvg->mv[mvi][0] = pred_dp->states[pred_si].mv[mvi][0];
+        mvg->mv[mvi][1] = pred_dp->states[pred_si].mv[mvi][1];
+      }
       OD_LOG_PARTIAL((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
        "(%i, %i: %i)->(%i , %i) ",
        pred_dp->mv->vx, pred_dp->mv->vy, pred_si, mvg->mv[0], mvg->mv[1]));
@@ -4444,12 +4453,13 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
   /*Compute the new rate for the current MV.*/
   mv = dp->mv;
   mvg = dp->mvg;
+  OD_ASSERT(mvg->blend == 0);
   equal_mvs = od_state_get_predictor(state, pred, mv->vx, mv->vy,
-   OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], mv_res, mvg->ref);
+   OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], mv_res, mvg->ref[0]);
   ref_pred = od_mc_get_ref_predictor(state, mv->vx, mv->vy,
    OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK]);
   *cur_mv_rate = od_mv_est_bits(est, equal_mvs,
-   mvg->mv[0] >> mv_res, mvg->mv[1] >> mv_res, pred[0], pred[1],
+   mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
    mvg->ref, ref_pred);
   OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
    "Current MV rate: %i - %i = %i",
@@ -4464,18 +4474,18 @@ static int od_mv_dp_get_rate_change(od_mv_est_ctx *est, od_mv_dp_node *dp,
     mvg = dp->predicted_mvgs[pi];
     equal_mvs = od_state_get_predictor(state, pred, mv->vx, mv->vy,
      OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK], mv_res,
-     mvg->ref);
+     mvg->ref[0]);
     ref_pred = od_mc_get_ref_predictor(state, mv->vx, mv->vy,
      OD_MC_LEVEL[mv->vy & OD_MVB_MASK][mv->vx & OD_MVB_MASK]);
     pred_mv_rates[pi] = od_mv_est_bits(est, equal_mvs,
-     mvg->mv[0] >> mv_res, mvg->mv[1] >> mv_res, pred[0], pred[1],
+     mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
      mvg->ref, ref_pred);
     OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
      "Calculated predicted mv_rate of %i for (%i, %i)",
      pred_mv_rates[pi], mv->vx, mv->vy));
     OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
      "Predictor was: (%i, %i)   MV was: (%i, %i)",
-     pred[0], pred[1], mvg->mv[0] >> mv_res, mvg->mv[1] >> mv_res));
+     pred[0], pred[1], mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res));
     OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG,
      "Predicted MV (%i, %i) rate: %i - %i = %i", mv->vx, mv->vy,
      pred_mv_rates[pi], mv->mv_rate, pred_mv_rates[pi] - mv->mv_rate));
@@ -4659,8 +4669,10 @@ static void od_mv_dp_row_init(od_mv_est_ctx *est,
   state = &est->enc->state;
   dp->mv = est->mvs[vy] + vx;
   dp->mvg = state->mv_grid[vy] + vx;
-  dp->original_mv[0] = dp->mvg->mv[0];
-  dp->original_mv[1] = dp->mvg->mv[1];
+  dp->original_mv[0][0] = dp->mvg->mv[0][0];
+  dp->original_mv[0][1] = dp->mvg->mv[0][1];
+  dp->original_mv[1][0] = dp->mvg->mv[1][0];
+  dp->original_mv[1][1] = dp->mvg->mv[1][1];
   dp->original_mv_rate = dp->mv->mv_rate;
   nhmvbs = state->nhmvbs;
   nvmvbs = state->nvmvbs;
@@ -4991,8 +5003,8 @@ static void od_mv_dp_restore_row_state(od_mv_dp_node *dp) {
     /*Restore the state for this MV itself.*/
     dp->mv->mv_rate = dp->original_mv_rate;
     mvg = dp->mvg;
-    mvg->mv[0] = dp->original_mv[0];
-    mvg->mv[1] = dp->original_mv[1];
+    mvg->mv[mvi][0] = dp->original_mv[0];
+    mvg->mv[mvi][1] = dp->original_mv[1];
     for (pi = 0; pi < dp->npred_changeable; pi++) {
       /*Restore the state for the MVs this one predicted.*/
       dp->predicted_mvs[pi]->mv_rate = dp->original_mv_rates[pi];
@@ -5032,8 +5044,8 @@ static void od_mv_dp_install_row_state(od_mv_dp_node *dp, int prevsi) {
      dp->mv->vx, dp->mv->vy, dp->states[si].mv_rate));
     dp->mv->mv_rate = dp->states[si].mv_rate;
     mvg = dp->mvg;
-    mvg->mv[0] = dp->states[si].mv[0];
-    mvg->mv[1] = dp->states[si].mv[1];
+    mvg->mv[mvi][0] = dp->states[si].mv[0];
+    mvg->mv[mvi][1] = dp->states[si].mv[1];
     /*Install the new block SADs.*/
     for (bi = 0; bi < dp->nblocks; bi++) {
       dp->blocks[bi]->sad = dp->states[si].block_sads[bi];
@@ -5099,8 +5111,8 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
     log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
     mvb_sz = 1 << log_mvb_sz;
     mvg = grid + vx;
-    curx = mvg->mv[0];
-    cury = mvg->mv[1];
+    curx = mvg->mv[mvi][0];
+    cury = mvg->mv[mvi][1];
     dp_node = est->dp_nodes;
     od_mv_dp_row_init(est, dp_node, vx, vy, NULL);
     od_mv_dp_first_row_block_setup(est, dp_node, vx, vy);
@@ -5115,8 +5127,8 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
       cstate->mv[0] = curx + (OD_SITE_DX[site] << log_dsz);
       cstate->mv[1] = cury + (OD_SITE_DY[site] << log_dsz);
       cstate->prevsi = -1;
-      mvg->mv[0] = cstate->mv[0];
-      mvg->mv[1] = cstate->mv[1];
+      mvg->mv[mvi][0] = cstate->mv[0];
+      mvg->mv[mvi][1] = cstate->mv[1];
       cstate->dr = od_mv_dp_get_rate_change(est, dp_node,
        &cstate->mv_rate, cstate->pred_mv_rates, -1, mv_res);
       cstate->dd = od_mv_dp_get_sad_change8(est, dp_node,
@@ -5152,14 +5164,14 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
       log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
       mvb_sz = 1 << log_mvb_sz;
       mvg = grid + vx;
-      curx = mvg->mv[0];
-      cury = mvg->mv[1];
+      curx = mvg->mv[mvi][0];
+      cury = mvg->mv[mvi][1];
       od_mv_dp_row_init(est, dp_node + 1, vx, vy, dp_node);
       od_mv_dp_prev_row_block_setup(est, dp_node + 1, vx, vy);
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG, "TESTING block SADs:"));
       if (od_logging_active(OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG)) {
-        pmvg->mv[0] = dp_node[0].original_mv[0];
-        pmvg->mv[0] = dp_node[0].original_mv[0];
+        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
+        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
         od_mv_dp_get_sad_change8(est, dp_node + 1, block_sads[0]);
       }
       /*Compute the set of states for this node.*/
@@ -5174,8 +5186,8 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
         best_dr = dp_node[0].states[0].dr;
         best_dd = dp_node[0].states[0].dd;
         best_cost = INT_MAX;
-        mvg->mv[0] = cstate->mv[0];
-        mvg->mv[1] = cstate->mv[1];
+        mvg->mv[mvi][0] = cstate->mv[0];
+        mvg->mv[mvi][1] = cstate->mv[1];
         for (si = 0; si < dp_node[0].nstates; si++) {
           pstate = dp_node[0].states + si;
           /*Get the rate change for this state using previous state si.
@@ -5227,14 +5239,14 @@ static int32_t od_mv_est_refine_row(od_mv_est_ctx *est,
       od_mv_dp_last_row_block_setup(est, dp_node + 1, dp_node[0].mv->vx, vy);
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG, "TESTING block SADs:"));
       if (od_logging_active(OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG)) {
-        pmvg->mv[0] = dp_node[0].original_mv[0];
-        pmvg->mv[1] = dp_node[0].original_mv[1];
+        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
+        pmvg->mv[mvi][1] = dp_node[0].original_mv[1];
         od_mv_dp_get_sad_change8(est, dp_node + 1, block_sads[0]);
       }
       for (si = 0; si < dp_node[0].nstates; si++) {
         pstate = dp_node[0].states + si;
-        pmvg->mv[0] = pstate->mv[0];
-        pmvg->mv[1] = pstate->mv[1];
+        pmvg->mv[mvi][0] = pstate->mv[0];
+        pmvg->mv[mvi][1] = pstate->mv[1];
         /*Test against the state with a following edge.*/
         dr = pstate->dr;
         dd = pstate->dd + od_mv_dp_get_sad_change8(est,
@@ -5315,8 +5327,8 @@ static void od_mv_dp_col_init(od_mv_est_ctx *est,
   state = &est->enc->state;
   dp->mv = est->mvs[vy] + vx;
   dp->mvg = state->mv_grid[vy] + vx;
-  dp->original_mv[0] = dp->mvg->mv[0];
-  dp->original_mv[1] = dp->mvg->mv[1];
+  dp->original_mv[0] = dp->mvg->mv[mvi][0];
+  dp->original_mv[1] = dp->mvg->mv[mvi][1];
   dp->original_mv_rate = dp->mv->mv_rate;
   nhmvbs = state->nhmvbs;
   nvmvbs = state->nvmvbs;
@@ -5637,8 +5649,8 @@ static void od_mv_dp_install_col_state(od_mv_dp_node *dp, int prevsi) {
     /*Install the state for this MV itself.*/
     dp->mv->mv_rate = dp->states[si].mv_rate;
     mvg = dp->mvg;
-    mvg->mv[0] = dp->states[si].mv[0];
-    mvg->mv[1] = dp->states[si].mv[1];
+    mvg->mv[mvi][0] = dp->states[si].mv[0];
+    mvg->mv[mvi][1] = dp->states[si].mv[1];
     /*Install the new block SADs.*/
     for (bi = 0; bi < dp->nblocks; bi++) {
       dp->blocks[bi]->sad = dp->states[si].block_sads[bi];
@@ -5718,8 +5730,10 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
       cstate->mv[0] = curx + (OD_SITE_DX[site] << log_dsz);
       cstate->mv[1] = cury + (OD_SITE_DY[site] << log_dsz);
       cstate->prevsi = -1;
-      mvg->mv[0] = cstate->mv[0];
-      mvg->mv[1] = cstate->mv[1];
+      mvg->mv[0][0] = cstate->mv[0][0];
+      mvg->mv[0][1] = cstate->mv[0][1];
+      mvg->mv[1][0] = cstate->mv[1][0];
+      mvg->mv[1][1] = cstate->mv[1][1];
       cstate->dr = od_mv_dp_get_rate_change(est, dp_node,
        &cstate->mv_rate, cstate->pred_mv_rates, -1, mv_res);
       cstate->dd = od_mv_dp_get_sad_change8(est, dp_node,
@@ -5754,14 +5768,14 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
       log_mvb_sz = (OD_MC_LEVEL_MAX - level) >> 1;
       mvb_sz = 1 << log_mvb_sz;
       mvg = grid[vy] + vx;
-      curx = mvg->mv[0];
-      cury = mvg->mv[1];
+      curx = mvg->mv[mvi][0];
+      cury = mvg->mv[mvi][1];
       od_mv_dp_col_init(est, dp_node + 1, vx, vy, dp_node);
       od_mv_dp_prev_col_block_setup(est, dp_node + 1, vx, vy);
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG, "TESTING block SADs:"));
       if (od_logging_active(OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG)) {
-        pmvg->mv[0] = dp_node[0].original_mv[0];
-        pmvg->mv[0] = dp_node[0].original_mv[0];
+        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
+        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
         od_mv_dp_get_sad_change8(est, dp_node + 1, block_sads[0]);
       }
       /*Compute the set of states for this node.*/
@@ -5776,8 +5790,8 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
         best_dr = dp_node[0].states[0].dr;
         best_dd = dp_node[0].states[0].dd;
         best_cost = INT_MAX;
-        mvg->mv[0] = cstate->mv[0];
-        mvg->mv[1] = cstate->mv[1];
+        mvg->mv[mvi][0] = cstate->mv[0];
+        mvg->mv[mvi][1] = cstate->mv[1];
         for (si = 0; si < dp_node[0].nstates; si++) {
           pstate = dp_node[0].states + si;
           /*Get the rate change for this state using previous state si.
@@ -5829,14 +5843,14 @@ static int32_t od_mv_est_refine_col(od_mv_est_ctx *est,
       od_mv_dp_last_col_block_setup(est, dp_node + 1, vx, dp_node[0].mv->vy);
       OD_LOG((OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG, "TESTING block SADs:"));
       if (od_logging_active(OD_LOG_MOTION_ESTIMATION, OD_LOG_DEBUG)) {
-        pmvg->mv[0] = dp_node[0].original_mv[0];
-        pmvg->mv[1] = dp_node[0].original_mv[1];
+        pmvg->mv[mvi][0] = dp_node[0].original_mv[0];
+        pmvg->mv[mvi][1] = dp_node[0].original_mv[1];
         od_mv_dp_get_sad_change8(est, dp_node + 1, block_sads[0]);
       }
       for (si = 0; si < dp_node[0].nstates; si++) {
         pstate = dp_node[0].states + si;
-        pmvg->mv[0] = pstate->mv[0];
-        pmvg->mv[1] = pstate->mv[1];
+        pmvg->mv[mvi][0] = pstate->mv[0];
+        pmvg->mv[mvi][1] = pstate->mv[1];
         /*Test against the state with a following edge.*/
         dr = pstate->dr;
         dd = pstate->dd + od_mv_dp_get_sad_change8(est,
@@ -5953,8 +5967,8 @@ void od_mv_est_update_fullpel_mvs(od_mv_est_ctx *est) {
       mvg = state->mv_grid[vy] + vx;
       if (!mvg->valid) continue;
       mv = est->mvs[vy] + vx;
-      mv->bma_mvs[0][mvg->ref][0] = mvg->mv[0] >> 3;
-      mv->bma_mvs[0][mvg->ref][1] = mvg->mv[1] >> 3;
+      mv->bma_mvs[0][mvg->ref[0]][0] = mvg->mv[0][0] >> 3;
+      mv->bma_mvs[0][mvg->ref[0]][1] = mvg->mv[0][1] >> 3;
     }
   }
 }
@@ -5982,15 +5996,16 @@ int od_mv_est_update_mv_rates(od_mv_est_ctx *est, int mv_res) {
       mvg = state->mv_grid[vy] + vx;
       if (!mvg->valid) continue;
       mv = est->mvs[vy] + vx;
+      OD_ASSERT(mvg->blend == 0);
       equal_mvs = od_state_get_predictor(state, pred,
        vx, vy, OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK], mv_res,
-       mvg->ref);
+       mvg->ref[0], 0);
       ref_pred = od_mc_get_ref_predictor(state,
        vx, vy, OD_MC_LEVEL[vy & OD_MVB_MASK][vx & OD_MVB_MASK]);
       dr -= mv->mv_rate;
       mv->mv_rate = od_mv_est_bits(est, equal_mvs,
-       mvg->mv[0] >> mv_res, mvg->mv[1] >> mv_res, pred[0], pred[1],
-       mvg->ref, ref_pred);
+       mvg->mv[0][0] >> mv_res, mvg->mv[0][1] >> mv_res, pred[0], pred[1],
+       mvg->ref[0], ref_pred, 0);
       dr += mv->mv_rate;
     }
   }

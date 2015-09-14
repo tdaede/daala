@@ -86,7 +86,7 @@ struct od_mv_node {
 /*One of the trellis states in the dynamic program.*/
 struct od_mv_dp_state {
   /*The MV to install for this state.*/
-  int mv[2];
+  int mv[2][2];
   /*The best state in the previous DP node to use with this one, or -1 to
      indicate the start of the path.*/
   int prevsi;

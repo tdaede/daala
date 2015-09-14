@@ -852,9 +852,10 @@ void od_state_pred_block_from_setup(od_state *state,
   for (k = 0; k < 4; k++) {
     grid[k] = state->mv_grid[vy + (dyp[k] << log_mvb_sz)]
      + vx + (dxp[k] << log_mvb_sz);
-    mvx[k] = (int32_t)OD_DIV_POW2_RE(grid[k]->mv[0], xdec);
-    mvy[k] = (int32_t)OD_DIV_POW2_RE(grid[k]->mv[1], ydec);
-    iplane = state->ref_imgs[state->ref_imgi[grid[k]->ref]].planes+pli;
+    OD_ASSERT(grid[k]->blend == 0);
+    mvx[k] = (int32_t)OD_DIV_POW2_RE(grid[k]->mv[0][0], xdec);
+    mvy[k] = (int32_t)OD_DIV_POW2_RE(grid[k]->mv[0][1], ydec);
+    iplane = state->ref_imgs[state->ref_imgi[grid[k]->ref[0]]].planes+pli;
     x = vx << (OD_LOG_MVBSIZE_MIN - iplane->xdec);
     y = vy << (OD_LOG_MVBSIZE_MIN - iplane->ydec);
     src[k] = iplane->data + y*iplane->ystride + x;
