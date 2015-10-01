@@ -2671,6 +2671,9 @@ This last compare is unneeded for a median:
      a[0][0], a[0][1], a[1][0], a[1][1], a[2][0], a[2][1]));
     pred[0] = OD_DIV_POW2_RE(a[1][0], mv_res);
     pred[1] = OD_DIV_POW2_RE(a[1][1], mv_res);
+  } else if (ai > 1) {
+    pred[0] = OD_DIV_POW2_RE(a[0][0] + a[1][0], mv_res + 1);
+    pred[1] = OD_DIV_POW2_RE(a[0][1] + a[1][1], mv_res + 1);
   } else if (ai > 0) {
     pred[0] = OD_DIV_POW2_RE(a[0][0], mv_res);
     pred[1] = OD_DIV_POW2_RE(a[0][1], mv_res);  
