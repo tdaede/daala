@@ -2616,6 +2616,14 @@ int od_state_get_predictor(od_state *state,
 #endif
     OD_ASSERT(cneighbors[ci]->valid);
   }
+  if (ai == 0) {
+    for (ci = 0; ci < ncns; ci++) {
+        a[ai][0] = cneighbors[ci]->mv[0];
+        a[ai][1] = cneighbors[ci]->mv[1];
+        ai++;
+      }
+    }
+  }
   /*Median-of-4.*/
   if (ai > 3) {
     OD_LOG((OD_LOG_MOTION_COMPENSATION, OD_LOG_DEBUG, "Median of 4:"));
