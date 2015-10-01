@@ -2618,10 +2618,9 @@ int od_state_get_predictor(od_state *state,
   }
   if (ai == 0) {
     for (ci = 0; ci < ncns; ci++) {
-        a[ai][0] = cneighbors[ci]->mv[0];
-        a[ai][1] = cneighbors[ci]->mv[1];
-        ai++;
-      }
+      a[ai][0] = cneighbors[ci]->mv[0];
+      a[ai][1] = cneighbors[ci]->mv[1];
+      ai++;
     }
   }
   /*Median-of-4.*/
